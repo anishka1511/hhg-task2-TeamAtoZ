@@ -1,0 +1,14 @@
+# Local always-on stack for development.
+# Prod host (Railway / Fly / VPS) can be chosen later — keep env-based URLs.
+
+services:
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+
+volumes:
+  qdrant_data:

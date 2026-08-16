@@ -1,0 +1,43 @@
+# Dependencies
+node_modules/
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# Env / secrets
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Build / Next
+frontend/.next/
+frontend/out/
+dist/
+build/
+*.tsbuildinfo
+
+# Data / indexes (large)
+indexing/data/raw/
+indexing/data/processed/
+uploads/
+*.parquet
+
+# Logs / OS
+*.log
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Eval outputs
+eval/results/
+eval/*.csv
+
+# Python
+*.egg-info/
+.pytest_cache/

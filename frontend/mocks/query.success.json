@@ -1,0 +1,28 @@
+{
+  "answer": "Paris is the capital of France.",
+  "contexts": [
+    {
+      "id": "doc-1-chunk-0",
+      "text": "Paris is the capital and most populous city of France.",
+      "score": 0.91,
+      "strategy": "fixed_overlap"
+    },
+    {
+      "id": "doc-2-chunk-1",
+      "text": "France is a country in Western Europe. Its capital is Paris.",
+      "score": 0.84,
+      "strategy": "fixed_overlap"
+    }
+  ],
+  "guardrail": {
+    "allowed": true,
+    "reason": null
+  },
+  "latency_ms": {
+    "stt": 0,
+    "retrieve": 18,
+    "generate": 72,
+    "guardrail": 4,
+    "total": 94
+  }
+}

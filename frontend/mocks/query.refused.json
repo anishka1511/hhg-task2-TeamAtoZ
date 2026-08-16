@@ -1,0 +1,15 @@
+{
+  "answer": "I don't have enough information in the knowledge base to answer that.",
+  "contexts": [],
+  "guardrail": {
+    "allowed": false,
+    "reason": "off_topic"
+  },
+  "latency_ms": {
+    "stt": 0,
+    "retrieve": 15,
+    "generate": 20,
+    "guardrail": 3,
+    "total": 38
+  }
+}

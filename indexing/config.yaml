@@ -1,0 +1,21 @@
+dataset:
+  name: ai4bharat/MSMARCO-XI
+  # TODO(Builder 1): set a laptop-friendly subset
+  subset_size: 1000
+  split: train
+
+paths:
+  raw: data/raw
+  processed: data/processed
+
+chunking:
+  default_strategy: fixed_overlap
+  strategies:
+    - fixed_overlap
+    - semantic
+    - metadata
+
+qdrant:
+  collection: msmarco_xi
+  # vector_size must match embedding model (Builder 1)
+  vector_size: 384
