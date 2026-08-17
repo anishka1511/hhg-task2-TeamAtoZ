@@ -1,35 +1,41 @@
 /**
- * Retrieval stub — Owner: Builder 1
- * Wire to Qdrant + chunking strategies after indexing exists.
+ * Retrieval for Builder 2's pipeline and POST /api/retrieve.
+ * Frozen context shape: { id, text, score, strategy }
  */
 
-const ALLOWED = new Set(['fixed_overlap', 'semantic', 'metadata']);
+import { embedQuery } from './embed.js';
+import { search } from './qdrantClient.js';
+
+const ALLOWED = new Set(['fixed_overlap', 'semantic', 'metadata_aware']);
 
 export async function retrieve(query, { strategy = 'fixed_overlap', top_k = 5 } = {}) {
   if (!query || !String(query).trim()) {
-    return {
-      ok: false,
-      statusCode: 400,
-      message: 'Empty query',
-    };
+    return { ok: false, error: 'empty_query', contexts: [] };
   }
 
   if (!ALLOWED.has(strategy)) {
-    return {
-      ok: false,
-      statusCode: 400,
-      message: `Unknown chunking_strategy: ${strategy}`,
-    };
+    return { ok: false, error: 'unknown_strategy', contexts: [] };
   }
 
-  return {
-    ok: false,
-    statusCode: 501,
-    message:
-      'TODO(Builder 1): implement Qdrant retrieve for strategy=' +
-      strategy +
-      ', top_k=' +
-      top_k,
-    contexts: [],
-  };
+  const k = Number(top_k);
+  const limit = Number.isFinite(k) && k > 0 ? Math.floor(k) : 5;
+
+  try {
+    const vector = await embedQuery(String(query).trim());
+    const results = await search(vector, { strategy, top_k: limit });
+    const contexts = results.map((r) => ({
+      id: r.id,
+      text: r.payload?.text ?? '',
+      score: r.score,
+      strategy: r.payload?.strategy ?? strategy,
+    }));
+    return { ok: true, contexts };
+  } catch (err) {
+    return {
+      ok: false,
+      error: 'retrieval_failed',
+      detail: err.message || 'retrieval failed',
+      contexts: [],
+    };
+  }
 }
