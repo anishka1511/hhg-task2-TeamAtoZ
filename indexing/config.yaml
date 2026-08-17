@@ -1,21 +1,46 @@
-dataset:
-  name: ai4bharat/MSMARCO-XI
-  # TODO(Builder 1): set a laptop-friendly subset
-  subset_size: 1000
-  split: train
+# Single source of truth for Builder 1 dataset / index settings.
+# Scripts should read these values — do not hardcode subset sizes elsewhere.
+
+# Hugging Face dataset identity
+hf_dataset: "ai4bharat/MSMARCO-XI"
+# Logical language id (docs / README). The Hub currently exposes only BuilderConfig
+# "default" (all languages). We load the matching parquet shard instead — see hf_data_file.
+# English_passages text is the same underlying MS MARCO English across language shards.
+hf_config: "hi"
+hf_split: "train"
+# Parquet shard for the logical hf_config (Hindi train). Avoids downloading the full default split.
+hf_data_file: "train/hintrain.parquet"
+
+# How many query rows to pull from the split before exploding passages / dedup / cap
+subset_query_rows: 1000
+# Hard cap on unique English passages after exact-text dedup (keeps laptop indexing fast)
+max_unique_passages: 5000
+# Soft floor: log a warning if unique passage count lands below this after dedup
+min_unique_passages_target: 3000
 
 paths:
-  raw: data/raw
-  processed: data/processed
-
-chunking:
-  default_strategy: fixed_overlap
-  strategies:
-    - fixed_overlap
-    - semantic
-    - metadata
+  # HF / download cache lives here (gitignored)
+  raw_cache_dir: "indexing/data/raw"
+  # Normalized passage records directory
+  processed_dir: "indexing/data/processed"
+  # Final ingest output: one JSONL line per unique English passage
+  processed_file: "indexing/data/processed/passages.jsonl"
 
 qdrant:
-  collection: msmarco_xi
-  # vector_size must match embedding model (Builder 1)
+  collection_name: "msmarco_xi"
+  # Must match embedding_model output dim (all-MiniLM-L6-v2 => 384)
   vector_size: 384
+  distance: "Cosine"
+
+# Local embedding model used at index time (query-time Node side should use the same id)
+embedding_model: "sentence-transformers/all-MiniLM-L6-v2"
+
+chunking:
+  fixed_overlap:
+    size_chars: 512
+    overlap_chars: 64
+  semantic:
+    max_chars: 512
+  metadata_aware:
+    # Prefer whole passage; only split if longer than this many characters
+    split_threshold_chars: 800
