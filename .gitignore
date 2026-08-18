@@ -19,8 +19,8 @@ build/
 *.tsbuildinfo
 
 # Data / indexes (large)
-indexing/data/raw/
-indexing/data/processed/
+indexing/data/
+!indexing/data/.gitkeep
 uploads/
 *.parquet
 

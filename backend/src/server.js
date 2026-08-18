@@ -17,6 +17,7 @@ import 'dotenv/config';
 import { registerHealthRoutes } from './routes/health.js';
 import { registerSttRoutes } from './routes/stt.js';
 import { registerQueryRoutes } from './routes/query.js';
+import { registerRetrieveRoutes } from './routes/retrieve.js';
 
 const PORT = Number(process.env.PORT || 3001);
 const CORS_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:3000';
@@ -31,6 +32,7 @@ await fastify.register(multipart, {
 await registerHealthRoutes(fastify);
 await registerSttRoutes(fastify);
 await registerQueryRoutes(fastify);
+await registerRetrieveRoutes(fastify);
 
 try {
   await fastify.listen({ port: PORT, host: '0.0.0.0' });

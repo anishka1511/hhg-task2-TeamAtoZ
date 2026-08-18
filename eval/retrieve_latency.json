@@ -1,0 +1,28 @@
+{
+  "generated_at": "2026-08-17T06:08:23.194Z",
+  "num_queries": 40,
+  "num_warmup": 5,
+  "measurement_method": "direct function call",
+  "by_strategy": {
+    "fixed_overlap": {
+      "p50": 10,
+      "p70": 10.4,
+      "p100": 11.6
+    },
+    "semantic": {
+      "p50": 9.5,
+      "p70": 9.9,
+      "p100": 10.5
+    },
+    "metadata_aware": {
+      "p50": 9.6,
+      "p70": 9.8,
+      "p100": 10.6
+    }
+  },
+  "combined": {
+    "p50": 9.7,
+    "p70": 10,
+    "p100": 11.6
+  }
+}

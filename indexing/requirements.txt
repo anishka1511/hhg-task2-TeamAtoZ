@@ -1,0 +1,7 @@
+# Python deps for ingest / chunk / index scripts only.
+# The Node backend uses its own package.json (@xenova/transformers for query-time embeddings).
+datasets>=2.19.0,<4.0.0
+sentence-transformers>=3.0.0,<4.0.0
+qdrant-client>=1.9.0,<2.0.0
+pyyaml>=6.0,<7.0
+nltk>=3.8,<4.0

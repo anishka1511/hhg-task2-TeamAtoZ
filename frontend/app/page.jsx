@@ -45,17 +45,25 @@ export default function Home() {
         return;
       }
 
-      const res = await fetch(`${API_URL}/api/query`, {
+      // Builder 2's /api/query (LLM) is not implemented yet (501).
+      // Use retrieve-only so the UI can demo indexed passages.
+      const res = await fetch(`${API_URL}/api/retrieve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question: q, source: 'text' }),
+        body: JSON.stringify({ question: q, strategy: 'fixed_overlap', top_k: 5 }),
       });
       const data = await res.json();
       if (!res.ok) {
         setError(data.message || data.error || 'Query failed');
         return;
       }
-      setResult(data);
+      const top = data.contexts?.[0];
+      setResult({
+        answer: top
+          ? `Retrieved ${data.contexts.length} passages (no LLM yet). Top match:`
+          : 'No matching passages.',
+        contexts: data.contexts || [],
+      });
     } catch (err) {
       setError(err.message || 'Network error');
     } finally {
@@ -71,7 +79,7 @@ export default function Home() {
         </p>
         <h1 style={{ margin: '0.35rem 0' }}>Voice RAG (scaffold)</h1>
         <p style={{ margin: 0, color: '#444' }}>
-          Text path works against the API contract. Mic + Sarvam STT and UI polish come later.
+          Retrieval is live (passages from Qdrant). LLM answers come when Builder 2 wires generation.
         </p>
         <p style={{ marginTop: 8, fontSize: 14 }}>
           API: <code>{API_URL}</code> · health: <strong>{health}</strong>
