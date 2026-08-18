@@ -106,6 +106,18 @@ Until those scripts exist beyond ingest, treat this README + `config.yaml` as th
 
 ---
 
+## Retrieve latency benchmark
+
+From repo root (Qdrant must be up and indexed; Fastify does **not** need to be running):
+
+```bash
+node eval/retrieve_bench.js
+```
+
+Warm-up means the first few retrieve calls are thrown away so MiniLM load / JIT cost is not counted in P50 / P70 / P100. Output: stdout table plus `eval/retrieve_latency.json` for Builder 2’s master latency report.
+
+---
+
 ## Sample records
 
 Printed by `python indexing/scripts/ingest.py` (first 5 unique passages written):
