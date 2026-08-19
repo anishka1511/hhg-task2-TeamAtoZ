@@ -1,10 +1,18 @@
 /**
  * GET /api/health
- * Builder 1: services.qdrant from pingQdrant().
- * Builder 2 owns stt / llm — leave those as currently defined.
+ * Builder 1: services.qdrant from pingQdrant() — do not reshape.
+ * Builder 2: stt / llm report whether keys are present.
+ *   not_wired  = env key missing
+ *   configured = STT key present (adapter still stub until M2)
+ *   ok         = LLM key present (Groq generate is wired)
  */
 
 import { pingQdrant } from '../services/retrieve/qdrantClient.js';
+
+function hasEnv(name) {
+  const value = process.env[name];
+  return Boolean(value && String(value).trim());
+}
 
 export async function registerHealthRoutes(fastify) {
   fastify.get('/api/health', async () => {
@@ -13,8 +21,8 @@ export async function registerHealthRoutes(fastify) {
       status: 'ok',
       services: {
         qdrant,
-        stt: 'not_wired',
-        llm: 'not_wired',
+        stt: hasEnv('SARVAM_API_KEY') ? 'configured' : 'not_wired',
+        llm: hasEnv('LLM_API_KEY') ? 'ok' : 'not_wired',
       },
     };
   });
