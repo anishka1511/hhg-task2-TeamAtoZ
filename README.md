@@ -38,12 +38,20 @@ npm run dev
 - Frontend: http://localhost:3000  
 - Backend: http://localhost:3001/api/health  
 
-Member 3 mock mode:
+### How to try the demo (Member 3 UI)
 
-```bash
-# in frontend/.env.local
-NEXT_PUBLIC_USE_MOCKS=true
-```
+1. Navigate to the frontend directory:
+   ```bash
+   cd frontend
+   npm install
+   ```
+2. Run in mock mode (instant local interactive testing):
+   ```bash
+   npm run dev
+   ```
+   Open [http://localhost:3000](http://localhost:3000) to test text queries, live mic audio recording, chunking strategy selection, latency HUD (<200ms target), and guardrail refusal alerts.
+3. Switch to live backend: Set `NEXT_PUBLIC_USE_MOCKS=false` and `NEXT_PUBLIC_API_URL=http://localhost:3001` in `frontend/.env.local`.
+
 
 ## API contract (frozen)
 

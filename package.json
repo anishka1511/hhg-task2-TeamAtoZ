@@ -5,8 +5,14 @@
   "description": "HH Goa 2026 Task 2 — Voice-enabled RAG (Team AtoZ)",
   "scripts": {
     "dev": "concurrently -n backend,frontend -c blue,green \"npm --prefix backend run dev\" \"npm --prefix frontend run dev\"",
+    "dev:all": "concurrently -n backend,fe,fe1,fe2,fe3,fe4 -c blue,green,magenta,yellow,cyan,red \"npm --prefix backend run dev\" \"npm --prefix frontend run dev\" \"npm --prefix frontend1 run dev\" \"npm --prefix frontend2 run dev\" \"npm --prefix frontend3 run dev\" \"npm --prefix frontend4 run dev\"",
+    "dev:all-frontends": "concurrently -n fe,fe1,fe2,fe3,fe4 -c green,magenta,yellow,cyan,red \"npm --prefix frontend run dev\" \"npm --prefix frontend1 run dev\" \"npm --prefix frontend2 run dev\" \"npm --prefix frontend3 run dev\" \"npm --prefix frontend4 run dev\"",
     "dev:backend": "npm --prefix backend run dev",
     "dev:frontend": "npm --prefix frontend run dev",
+    "dev:frontend1": "npm --prefix frontend1 run dev",
+    "dev:frontend2": "npm --prefix frontend2 run dev",
+    "dev:frontend3": "npm --prefix frontend3 run dev",
+    "dev:frontend4": "npm --prefix frontend4 run dev",
     "install:all": "npm install && npm --prefix backend install && npm --prefix frontend install"
   },
   "devDependencies": {
