@@ -107,7 +107,8 @@ def connect_qdrant(url: str, path: str | None = None):
         print(f"Using local Qdrant storage at {path}")
         return client
 
-    client = QdrantClient(url=url, timeout=60)
+    api_key = os.environ.get("QDRANT_API_KEY") or None
+    client = QdrantClient(url=url, api_key=api_key, timeout=60)
     try:
         client.get_collections()
     except Exception as exc:  # noqa: BLE001
@@ -143,6 +144,16 @@ def ensure_collection(client, collection_name: str, vector_size: int, distance: 
         )
     else:
         print(f"Reusing existing collection {collection_name!r}")
+
+    from qdrant_client.models import PayloadSchemaType
+    try:
+        client.create_payload_index(
+            collection_name=collection_name,
+            field_name="strategy",
+            field_schema=PayloadSchemaType.KEYWORD,
+        )
+    except Exception:
+        pass  # index may already exist
 
 
 def point_id_for_chunk(chunk_id: str, strategy: str) -> str:
