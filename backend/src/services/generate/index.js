@@ -1,18 +1,124 @@
 /**
- * Grounded generation stub — Owner: Builder 2
+ * Grounded generation — Owner: Builder 2
+ * Answers only from retrieved contexts via Groq.
  */
 
-export async function generateAnswer({ question, contexts }) {
+import { groqChat } from './groq.js';
+
+const DEFAULT_MODEL = 'openai/gpt-oss-20b';
+
+function parseGroundedJson(text) {
+  const trimmed = String(text).trim();
+  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/);
+  const candidate = fenced ? fenced[1] : trimmed;
+  const parsed = JSON.parse(candidate);
   return {
-    ok: false,
-    statusCode: 501,
-    message:
-      'TODO(Builder 2): call LLM with grounded prompt using contexts. question=' +
-      String(question).slice(0, 40),
-    answer: null,
-    refuse: false,
-    used_context_ids: [],
-    // contexts length available for implementers
-    _contextCount: Array.isArray(contexts) ? contexts.length : 0,
+    answer: typeof parsed.answer === 'string' ? parsed.answer.trim() : '',
+    refuse: Boolean(parsed.refuse),
+    used_context_ids: Array.isArray(parsed.used_context_ids)
+      ? parsed.used_context_ids.map(String)
+      : [],
   };
+}
+
+function buildPrompt(question, contexts) {
+  const blocks = contexts
+    .map((c, i) => {
+      const id = c.id ?? `ctx-${i}`;
+      const score = typeof c.score === 'number' ? c.score.toFixed(3) : 'n/a';
+      const text = String(c.text || '').slice(0, 800);
+      return `[${i + 1}] id=${id} score=${score}\n${text}`;
+    })
+    .join('\n\n');
+
+  return {
+    system: [
+      'You are a retrieval-grounded assistant for a voice RAG demo.',
+      'Answer ONLY using the supplied contexts. Do not use outside knowledge.',
+      'Keep answers to 2–4 short sentences.',
+      'If the contexts are empty, unrelated, or too weak to answer, set refuse=true and answer="".',
+      'Respond with JSON only: {"answer":"string","refuse":boolean,"used_context_ids":["id"]}',
+    ].join(' '),
+    user: `Question: ${question}\n\nContexts:\n${blocks || '(none)'}`,
+  };
+}
+
+export async function generateAnswer({ question, contexts }) {
+  const apiKey = process.env.LLM_API_KEY && String(process.env.LLM_API_KEY).trim();
+  if (!apiKey) {
+    return {
+      ok: false,
+      statusCode: 501,
+      error: 'llm_not_configured',
+      message: 'Set LLM_API_KEY in .env (Groq) to enable grounded generation.',
+      answer: null,
+      refuse: false,
+      used_context_ids: [],
+    };
+  }
+
+  const list = Array.isArray(contexts) ? contexts : [];
+  if (list.length === 0) {
+    return {
+      ok: true,
+      answer: '',
+      refuse: true,
+      used_context_ids: [],
+    };
+  }
+
+  const model = (process.env.LLM_MODEL || DEFAULT_MODEL).trim();
+  const { system, user } = buildPrompt(question, list);
+
+  try {
+    const content = await groqChat({
+      apiKey,
+      model,
+      messages: [
+        { role: 'system', content: system },
+        { role: 'user', content: user },
+      ],
+    });
+
+    let parsed;
+    try {
+      parsed = parseGroundedJson(content);
+    } catch {
+      return {
+        ok: true,
+        answer: String(content).trim().slice(0, 600),
+        refuse: false,
+        used_context_ids: list.map((c) => String(c.id)).filter(Boolean),
+      };
+    }
+
+    if (parsed.refuse || !parsed.answer) {
+      return {
+        ok: true,
+        answer: '',
+        refuse: true,
+        used_context_ids: parsed.used_context_ids,
+      };
+    }
+
+    return {
+      ok: true,
+      answer: parsed.answer,
+      refuse: false,
+      used_context_ids:
+        parsed.used_context_ids.length > 0
+          ? parsed.used_context_ids
+          : list.map((c) => String(c.id)).filter(Boolean),
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      statusCode: err.statusCode || 503,
+      error: 'generate_failed',
+      message: err.message || 'Groq generation failed',
+      answer: null,
+      refuse: false,
+      used_context_ids: [],
+    };
+  }
 }

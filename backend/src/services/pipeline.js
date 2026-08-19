@@ -10,6 +10,12 @@ import { generateAnswer } from './generate/index.js';
 import { applyGuardrails } from './guardrails/index.js';
 import { createTimer } from './latency/timer.js';
 
+const RETRIEVE_HTTP = {
+  empty_query: 400,
+  unknown_strategy: 400,
+  retrieval_failed: 503,
+};
+
 export async function runQueryPipeline({ question, source, chunking_strategy }) {
   const timer = createTimer();
 
@@ -22,11 +28,12 @@ export async function runQueryPipeline({ question, source, chunking_strategy }) 
   timer.mark('retrieve_end');
 
   if (!retrieval.ok) {
+    const error = retrieval.error || 'retrieval_failed';
     return {
       ok: false,
-      statusCode: retrieval.statusCode || 501,
-      error: 'Retrieve Not Implemented',
-      message: retrieval.message,
+      statusCode: RETRIEVE_HTTP[error] || 503,
+      error,
+      message: retrieval.detail || error,
       stage: 'retrieve',
     };
   }
@@ -42,8 +49,8 @@ export async function runQueryPipeline({ question, source, chunking_strategy }) 
   if (!generation.ok) {
     return {
       ok: false,
-      statusCode: generation.statusCode || 501,
-      error: 'Generate Not Implemented',
+      statusCode: generation.statusCode || 503,
+      error: generation.error || 'generate_failed',
       message: generation.message,
       stage: 'generate',
     };
