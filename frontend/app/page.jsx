@@ -6,6 +6,13 @@ import refusedMock from '../mocks/query.refused.json';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 const USE_MOCKS = process.env.NEXT_PUBLIC_USE_MOCKS === 'true';
+const DEMO_PASSWORD = process.env.NEXT_PUBLIC_DEMO_PASSWORD || '';
+
+function apiHeaders(extra = {}) {
+  const headers = { ...extra };
+  if (DEMO_PASSWORD) headers['x-demo-password'] = DEMO_PASSWORD;
+  return headers;
+}
 
 const STRATEGIES = [
   { value: 'fixed_overlap', label: 'fixed_overlap' },
@@ -48,7 +55,7 @@ export default function Home() {
   async function runQuery(q, source) {
     const res = await fetch(`${API_URL}/api/query`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: apiHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({
         question: q,
         source,
@@ -133,7 +140,11 @@ export default function Home() {
 
           const form = new FormData();
           form.append('file', blob, 'recording.webm');
-          const sttRes = await fetch(`${API_URL}/api/stt`, { method: 'POST', body: form });
+          const sttRes = await fetch(`${API_URL}/api/stt`, {
+            method: 'POST',
+            headers: apiHeaders(),
+            body: form,
+          });
           const sttData = await sttRes.json();
           if (!sttRes.ok) {
             throw new Error(sttData.message || sttData.error || 'STT failed');

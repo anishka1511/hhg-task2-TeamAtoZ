@@ -18,16 +18,19 @@ import { registerHealthRoutes } from './routes/health.js';
 import { registerSttRoutes } from './routes/stt.js';
 import { registerQueryRoutes } from './routes/query.js';
 import { registerRetrieveRoutes } from './routes/retrieve.js';
+import { registerHardening } from './plugins/hardening.js';
 
 const PORT = Number(process.env.PORT || 3001);
 const CORS_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:3000';
 
-const fastify = Fastify({ logger: true });
+const fastify = Fastify({ logger: true, trustProxy: true });
 
-await fastify.register(cors, { origin: CORS_ORIGIN });
+await fastify.register(cors, { origin: CORS_ORIGIN === '*' ? true : CORS_ORIGIN });
 await fastify.register(multipart, {
   limits: { fileSize: 10 * 1024 * 1024 },
 });
+
+registerHardening(fastify);
 
 await registerHealthRoutes(fastify);
 await registerSttRoutes(fastify);

@@ -1,0 +1,716 @@
+{
+  "generated_at": "2026-08-21T04:53:12.572Z",
+  "api": "http://127.0.0.1:3001",
+  "strategy": "fixed_overlap",
+  "num_warmup": 5,
+  "num_queries": 40,
+  "num_ok": 40,
+  "num_failed": 0,
+  "measurement_method": "HTTP POST /api/query (text path); latency_ms from response JSON",
+  "stages": {
+    "retrieve": {
+      "n": 40,
+      "p50": 222,
+      "p70": 226,
+      "p100": 644
+    },
+    "generate": {
+      "n": 40,
+      "p50": 579,
+      "p70": 773,
+      "p100": 2467
+    },
+    "guardrail": {
+      "n": 40,
+      "p50": 0,
+      "p70": 0,
+      "p100": 1
+    },
+    "total_post_stt": {
+      "n": 40,
+      "p50": 804,
+      "p70": 1144,
+      "p100": 2675
+    },
+    "wall_http": {
+      "n": 40,
+      "p50": 823,
+      "p70": 1162,
+      "p100": 2693
+    }
+  },
+  "retrieve_only_handoff_builder1": {
+    "source": "eval/retrieve_latency.json",
+    "combined": {
+      "p50": 9.7,
+      "p70": 10,
+      "p100": 11.6
+    },
+    "by_strategy": {
+      "fixed_overlap": {
+        "p50": 10,
+        "p70": 10.4,
+        "p100": 11.6
+      },
+      "semantic": {
+        "p50": 9.5,
+        "p70": 9.9,
+        "p100": 10.5
+      },
+      "metadata_aware": {
+        "p50": 9.6,
+        "p70": 9.8,
+        "p100": 10.6
+      }
+    },
+    "note": "Direct retrieve() call; no HTTP/LLM. Prefer this column for retrieve-only in the report."
+  },
+  "stt": {
+    "sampled": false,
+    "note": "Text-path bench only. Sample voice separately if needed; do not burn Sarvam credits in CI."
+  },
+  "target_ms": 200,
+  "meets_200ms_p50": false,
+  "rows": [
+    {
+      "i": 0,
+      "ok": true,
+      "status": 200,
+      "question": "What was the Manhattan Project and who ran it during World War II?",
+      "latency_ms": {
+        "stt": 0,
+        "retrieve": 231,
+        "generate": 988,
+        "guardrail": 1,
+        "total": 1220
+      },
+      "wall_ms": 1231,
+      "allowed": true,
+      "reason": null
+    },
+    {
+      "i": 1,
+      "ok": true,
+      "status": 200,
+      "question": "How did the atomic bomb project change the end of the war?",
+      "latency_ms": {
+        "stt": 0,
+        "retrieve": 211,
+        "generate": 541,
+        "guardrail": 0,
+        "total": 752
+      },
+      "wall_ms": 769,
+      "allowed": true,
+      "reason": null
+    },
+    {
+      "i": 2,
+      "ok": true,
+      "status": 200,
+      "question": "When can someone start collecting Social Security retirement payments?",
+      "latency_ms": {
+        "stt": 0,
+        "retrieve": 223,
+        "generate": 507,
+        "guardrail": 0,
+        "total": 730
+      },
+      "wall_ms": 747,
+      "allowed": true,
+      "reason": null
+    },
+    {
+      "i": 3,
+      "ok": true,
+      "status": 200,
+      "question": "How many years of Social Security tax work do you need to qualify?",
+      "latency_ms": {
+        "stt": 0,
+        "retrieve": 217,
+        "generate": 537,
+        "guardrail": 0,
+        "total": 754
+      },
+      "wall_ms": 759,
+      "allowed": true,
+      "reason": null
+    },
+    {
+      "i": 4,
+      "ok": true,
+      "status": 200,
+      "question": "What does the place name Yucaipa mean in the local Native language?",
+      "latency_ms": {
+        "stt": 0,
+        "retrieve": 223,
+        "generate": 564,
+        "guardrail": 0,
+        "total": 787
+      },
+      "wall_ms": 805,
+      "allowed": true,
+      "reason": null
+    },
+    {
+      "i": 5,
+      "ok": true,
+      "status": 200,
+      "question": "What are common reasons people get pain in the middle of their back?",
+      "latency_ms": {
+        "stt": 0,
+        "retrieve": 217,
+        "generate": 1191,
+        "guardrail": 0,
+        "total": 1408
+      },
+      "wall_ms": 1425,
+      "allowed": true,
+      "reason": null
+    },
+    {
+      "i": 6,
+      "ok": true,
+      "status": 200,
+      "question": "How does restorative justice treat crime compared to the state?",
+      "latency_ms": {
+        "stt": 0,
+        "retrieve": 219,
+        "generate": 1216,
+        "guardrail": 0,
+        "total": 1435
+      },
+      "wall_ms": 1446,
+      "allowed": true,
+      "reason": null
+    },
+    {
+      "i": 7,
+      "ok": true,
+      "status": 200,
+      "question": "What does it mean if someone says the elevator does not go to the top?",
+      "latency_ms": {
+        "stt": 0,
+        "retrieve": 222,
+        "generate": 579,
+        "guardrail": 0,
+        "total": 801
+      },
+      "wall_ms": 819,
+      "allowed": true,
+      "reason": null
+    },
+    {
+      "i": 8,
+      "ok": true,
+      "status": 200,
+      "question": "Are private security guards allowed to arrest people?",
+      "latency_ms": {
+        "stt": 0,
+        "retrieve": 208,
+        "generate": 1717,
+        "guardrail": 0,
+        "total": 1925
+      },
+      "wall_ms": 1943,
+      "allowed": true,
+      "reason": null
+    },
+    {
+      "i": 9,
+      "ok": true,
+      "status": 200,
+      "question": "How much should an unarmed security officer typically be paid?",
+      "latency_ms": {
+        "stt": 0,
+        "retrieve": 644,
+        "generate": 541,
+        "guardrail": 0,
+        "total": 1185
+      },
+      "wall_ms": 1188,
+      "allowed": true,
+      "reason": null
+    },
+    {
+      "i": 10,
+      "ok": true,
+      "status": 200,
+      "question": "What is the water elevation at Lake Mead near Hoover Dam?",
+      "latency_ms": {
+        "stt": 0,
+        "retrieve": 217,
+        "generate": 561,
+        "guardrail": 0,
+        "total": 778
+      },
+      "wall_ms": 789,
+      "allowed": false,
+      "reason": "generator_refused"
+    },
+    {
+      "i": 11,
+      "ok": true,
+      "status": 200,
+      "question": "Which actress played Loretta Lynn in Coal Miner's Daughter?",
+      "latency_ms": {
+        "stt": 0,
+        "retrieve": 228,
+        "generate": 241,
+        "guardrail": 0,
+        "total": 470
+      },
+      "wall_ms": 486,
+      "allowed": true,
+      "reason": null
+    },
+    {
+      "i": 12,
+      "ok": true,
+      "status": 200,
+      "question": "What should college students wear to class instead of sweats?",
+      "latency_ms": {
+        "stt": 0,
+        "retrieve": 214,
+        "generate": 651,
+        "guardrail": 0,
+        "total": 865
+      },
+      "wall_ms": 872,
+      "allowed": true,
+      "reason": null
+    },
+    {
+      "i": 13,
+      "ok": true,
+      "status": 200,
+      "question": "How is phloem different from xylem in how it moves sap?",
+      "latency_ms": {
+        "stt": 0,
+        "retrieve": 301,
+        "generate": 843,
+        "guardrail": 0,
+        "total": 1144
+      },
+      "wall_ms": 1162,
+      "allowed": true,
+      "reason": null
+    },
+    {
+      "i": 14,
+      "ok": true,
+      "status": 200,
+      "question": "Can you use food stamps at Costco stores?",
+      "latency_ms": {
+        "stt": 0,
+        "retrieve": 225,
+        "generate": 570,
+        "guardrail": 1,
+        "total": 796
+      },
+      "wall_ms": 812,
+      "allowed": true,
+      "reason": null
+    },
+    {
+      "i": 15,
+      "ok": true,
+      "status": 200,
+      "question": "What is a crevice and where might animals hide in one?",
+      "latency_ms": {
+        "stt": 0,
+        "retrieve": 638,
+        "generate": 1195,
+        "guardrail": 0,
+        "total": 1833
+      },
+      "wall_ms": 1851,
+      "allowed": true,
+      "reason": null
+    },
+    {
+      "i": 16,
+      "ok": true,
+      "status": 200,
+      "question": "How much does a Georgia name-change duplicate driver license cost?",
+      "latency_ms": {
+        "stt": 0,
+        "retrieve": 231,
+        "generate": 508,
+        "guardrail": 0,
+        "total": 739
+      },
+      "wall_ms": 755,
+      "allowed": true,
+      "reason": null
+    },
+    {
+      "i": 17,
+      "ok": true,
+      "status": 200,
+      "question": "When can you renew a Georgia driver license before it expires?",
+      "latency_ms": {
+        "stt": 0,
+        "retrieve": 233,
+        "generate": 363,
+        "guardrail": 0,
+        "total": 596
+      },
+      "wall_ms": 613,
+      "allowed": true,
+      "reason": null
+    },
+    {
+      "i": 18,
+      "ok": true,
+      "status": 200,
+      "question": "How many shows can an X1 DVR record at the same time?",
+      "latency_ms": {
+        "stt": 0,
+        "retrieve": 239,
+        "generate": 606,
+        "guardrail": 0,
+        "total": 845
+      },
+      "wall_ms": 863,
+      "allowed": true,
+      "reason": null
+    },
+    {
+      "i": 19,
+      "ok": true,
+      "status": 200,
+      "question": "Who directed the Los Alamos lab that designed the bombs?",
+      "latency_ms": {
+        "stt": 0,
+        "retrieve": 232,
+        "generate": 862,
+        "guardrail": 0,
+        "total": 1094
+      },
+      "wall_ms": 1112,
+      "allowed": true,
+      "reason": null
+    },
+    {
+      "i": 20,
+      "ok": true,
+      "status": 200,
+      "question": "What is the meaning of the word elevator in a dictionary sense?",
+      "latency_ms": {
+        "stt": 0,
+        "retrieve": 618,
+        "generate": 646,
+        "guardrail": 0,
+        "total": 1264
+      },
+      "wall_ms": 1283,
+      "allowed": true,
+      "reason": null
+    },
+    {
+      "i": 21,
+      "ok": true,
+      "status": 200,
+      "question": "Do professors really teach a full class on the first day of school?",
+      "latency_ms": {
+        "stt": 0,
+        "retrieve": 226,
+        "generate": 507,
+        "guardrail": 0,
+        "total": 733
+      },
+      "wall_ms": 741,
+      "allowed": true,
+      "reason": null
+    },
+    {
+      "i": 22,
+      "ok": true,
+      "status": 200,
+      "question": "What is the capital of France?",
+      "latency_ms": {
+        "stt": 0,
+        "retrieve": 218,
+        "generate": 540,
+        "guardrail": 0,
+        "total": 758
+      },
+      "wall_ms": 776,
+      "allowed": false,
+      "reason": "off_topic"
+    },
+    {
+      "i": 23,
+      "ok": true,
+      "status": 200,
+      "question": "How do I bake a simple loaf of bread at home?",
+      "latency_ms": {
+        "stt": 0,
+        "retrieve": 226,
+        "generate": 545,
+        "guardrail": 0,
+        "total": 771
+      },
+      "wall_ms": 774,
+      "allowed": false,
+      "reason": "generator_refused"
+    },
+    {
+      "i": 24,
+      "ok": true,
+      "status": 200,
+      "question": "Who won the most recent FIFA World Cup?",
+      "latency_ms": {
+        "stt": 0,
+        "retrieve": 210,
+        "generate": 486,
+        "guardrail": 0,
+        "total": 696
+      },
+      "wall_ms": 714,
+      "allowed": false,
+      "reason": "off_topic"
+    },
+    {
+      "i": 25,
+      "ok": true,
+      "status": 200,
+      "question": "What is the best way to train a puppy not to chew furniture?",
+      "latency_ms": {
+        "stt": 0,
+        "retrieve": 215,
+        "generate": 484,
+        "guardrail": 0,
+        "total": 699
+      },
+      "wall_ms": 714,
+      "allowed": false,
+      "reason": "off_topic"
+    },
+    {
+      "i": 26,
+      "ok": true,
+      "status": 200,
+      "question": "How far is the Moon from Earth on average?",
+      "latency_ms": {
+        "stt": 0,
+        "retrieve": 220,
+        "generate": 473,
+        "guardrail": 1,
+        "total": 694
+      },
+      "wall_ms": 711,
+      "allowed": true,
+      "reason": null
+    },
+    {
+      "i": 27,
+      "ok": true,
+      "status": 200,
+      "question": "Can you explain how photosynthesis works in houseplants?",
+      "latency_ms": {
+        "stt": 0,
+        "retrieve": 221,
+        "generate": 1460,
+        "guardrail": 0,
+        "total": 1681
+      },
+      "wall_ms": 1689,
+      "allowed": true,
+      "reason": null
+    },
+    {
+      "i": 28,
+      "ok": true,
+      "status": 200,
+      "question": "What time zone is Tokyo in?",
+      "latency_ms": {
+        "stt": 0,
+        "retrieve": 209,
+        "generate": 612,
+        "guardrail": 0,
+        "total": 821
+      },
+      "wall_ms": 841,
+      "allowed": false,
+      "reason": "generator_refused"
+    },
+    {
+      "i": 29,
+      "ok": true,
+      "status": 200,
+      "question": "How do I change a flat bicycle tire?",
+      "latency_ms": {
+        "stt": 0,
+        "retrieve": 222,
+        "generate": 577,
+        "guardrail": 1,
+        "total": 800
+      },
+      "wall_ms": 802,
+      "allowed": false,
+      "reason": "off_topic"
+    },
+    {
+      "i": 30,
+      "ok": true,
+      "status": 200,
+      "question": "What are the ingredients in a classic margarita?",
+      "latency_ms": {
+        "stt": 0,
+        "retrieve": 223,
+        "generate": 773,
+        "guardrail": 0,
+        "total": 996
+      },
+      "wall_ms": 998,
+      "allowed": false,
+      "reason": "generator_refused"
+    },
+    {
+      "i": 31,
+      "ok": true,
+      "status": 200,
+      "question": "Is Pluto still considered a planet by astronomers?",
+      "latency_ms": {
+        "stt": 0,
+        "retrieve": 205,
+        "generate": 632,
+        "guardrail": 0,
+        "total": 837
+      },
+      "wall_ms": 854,
+      "allowed": false,
+      "reason": "generator_refused"
+    },
+    {
+      "i": 32,
+      "ok": true,
+      "status": 200,
+      "question": "SSN?",
+      "latency_ms": {
+        "stt": 0,
+        "retrieve": 219,
+        "generate": 500,
+        "guardrail": 0,
+        "total": 719
+      },
+      "wall_ms": 727,
+      "allowed": false,
+      "reason": "off_topic"
+    },
+    {
+      "i": 33,
+      "ok": true,
+      "status": 200,
+      "question": "DVR??",
+      "latency_ms": {
+        "stt": 0,
+        "retrieve": 214,
+        "generate": 590,
+        "guardrail": 0,
+        "total": 804
+      },
+      "wall_ms": 823,
+      "allowed": true,
+      "reason": null
+    },
+    {
+      "i": 34,
+      "ok": true,
+      "status": 200,
+      "question": "phloem / xylem — difference???",
+      "latency_ms": {
+        "stt": 0,
+        "retrieve": 336,
+        "generate": 1139,
+        "guardrail": 0,
+        "total": 1475
+      },
+      "wall_ms": 1478,
+      "allowed": true,
+      "reason": null
+    },
+    {
+      "i": 35,
+      "ok": true,
+      "status": 200,
+      "question": "Manhattan... project???",
+      "latency_ms": {
+        "stt": 0,
+        "retrieve": 222,
+        "generate": 538,
+        "guardrail": 1,
+        "total": 761
+      },
+      "wall_ms": 780,
+      "allowed": true,
+      "reason": null
+    },
+    {
+      "i": 36,
+      "ok": true,
+      "status": 200,
+      "question": "cost?? $",
+      "latency_ms": {
+        "stt": 0,
+        "retrieve": 220,
+        "generate": 651,
+        "guardrail": 0,
+        "total": 871
+      },
+      "wall_ms": 888,
+      "allowed": false,
+      "reason": "off_topic"
+    },
+    {
+      "i": 37,
+      "ok": true,
+      "status": 200,
+      "question": "back pain.",
+      "latency_ms": {
+        "stt": 0,
+        "retrieve": 222,
+        "generate": 1100,
+        "guardrail": 0,
+        "total": 1322
+      },
+      "wall_ms": 1339,
+      "allowed": true,
+      "reason": null
+    },
+    {
+      "i": 38,
+      "ok": true,
+      "status": 200,
+      "question": "Yucaipa!",
+      "latency_ms": {
+        "stt": 0,
+        "retrieve": 604,
+        "generate": 1853,
+        "guardrail": 0,
+        "total": 2457
+      },
+      "wall_ms": 2475,
+      "allowed": true,
+      "reason": null
+    },
+    {
+      "i": 39,
+      "ok": true,
+      "status": 200,
+      "question": "elevator",
+      "latency_ms": {
+        "stt": 0,
+        "retrieve": 208,
+        "generate": 2467,
+        "guardrail": 0,
+        "total": 2675
+      },
+      "wall_ms": 2693,
+      "allowed": true,
+      "reason": null
+    }
+  ]
+}
