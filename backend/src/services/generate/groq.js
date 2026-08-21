@@ -9,31 +9,48 @@ export async function groqChat({
   apiKey,
   model,
   messages,
-  maxTokens = 180,
-  timeoutMs = 8000,
+  maxTokens = 220,
+  timeoutMs = 20000,
+  jsonMode = true,
 }) {
-  const res = await fetch(GROQ_URL, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
+  async function once(useJson) {
+    const body = {
       model,
       messages,
       temperature: 0.2,
       max_tokens: maxTokens,
-      response_format: { type: 'json_object' },
-    }),
-    signal: AbortSignal.timeout(timeoutMs),
-  });
+    };
+    if (useJson) {
+      body.response_format = { type: 'json_object' };
+    }
 
-  const raw = await res.text();
-  let data = {};
-  try {
-    data = raw ? JSON.parse(raw) : {};
-  } catch {
-    data = { error: { message: raw.slice(0, 200) } };
+    const res = await fetch(GROQ_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+
+    const raw = await res.text();
+    let data = {};
+    try {
+      data = raw ? JSON.parse(raw) : {};
+    } catch {
+      data = { error: { message: raw.slice(0, 200) } };
+    }
+
+    return { res, data };
+  }
+
+  let { res, data } = await once(jsonMode);
+
+  // Some Groq models reject json_object; retry as plain text.
+  const msg = String(data.error?.message || '');
+  if (!res.ok && jsonMode && /json|failed_generation|response_format/i.test(msg)) {
+    ({ res, data } = await once(false));
   }
 
   if (!res.ok) {

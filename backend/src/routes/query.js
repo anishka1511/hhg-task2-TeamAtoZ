@@ -1,17 +1,16 @@
 /**
  * POST /api/query — text (or voice transcript) → grounded answer
- * TODO (Builder 2): wire retrieve → generate → guardrails → latency timers
- * TODO (Builder 1): implement retrieve() used below
+ * Owner: Builder 2 harness + Builder 1 retrieve
  */
 
-import { runQueryPipeline } from '../services/pipeline.js';
+import { normalizeStrategy, runQueryPipeline } from '../services/pipeline.js';
 
 export async function registerQueryRoutes(fastify) {
   fastify.post('/api/query', async (request, reply) => {
     const body = request.body || {};
     const question = typeof body.question === 'string' ? body.question.trim() : '';
     const source = body.source === 'voice' ? 'voice' : 'text';
-    const chunking_strategy = body.chunking_strategy || 'fixed_overlap';
+    const chunking_strategy = normalizeStrategy(body.chunking_strategy);
 
     if (!question) {
       return reply.code(400).send({
@@ -27,7 +26,7 @@ export async function registerQueryRoutes(fastify) {
     });
 
     if (!result.ok) {
-      return reply.code(result.statusCode || 501).send({
+      return reply.code(result.statusCode || 503).send({
         error: result.error,
         message: result.message,
         stage: result.stage,

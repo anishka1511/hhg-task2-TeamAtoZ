@@ -10,15 +10,38 @@ const DEFAULT_MODEL = 'openai/gpt-oss-20b';
 function parseGroundedJson(text) {
   const trimmed = String(text).trim();
   const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/);
-  const candidate = fenced ? fenced[1] : trimmed;
-  const parsed = JSON.parse(candidate);
-  return {
-    answer: typeof parsed.answer === 'string' ? parsed.answer.trim() : '',
-    refuse: Boolean(parsed.refuse),
-    used_context_ids: Array.isArray(parsed.used_context_ids)
-      ? parsed.used_context_ids.map(String)
-      : [],
-  };
+  let candidate = fenced ? fenced[1].trim() : trimmed;
+  if (!candidate.startsWith('{')) {
+    const start = candidate.indexOf('{');
+    const end = candidate.lastIndexOf('}');
+    if (start >= 0 && end > start) {
+      candidate = candidate.slice(start, end + 1);
+    }
+  }
+
+  try {
+    const parsed = JSON.parse(candidate);
+    return {
+      answer: typeof parsed.answer === 'string' ? parsed.answer.trim() : '',
+      refuse: Boolean(parsed.refuse),
+      used_context_ids: Array.isArray(parsed.used_context_ids)
+        ? parsed.used_context_ids.map(String)
+        : [],
+    };
+  } catch {
+    // Truncated JSON from max_tokens — still pull the answer field if present.
+    const m = candidate.match(/"answer"\s*:\s*"((?:\\.|[^"\\])*)"/);
+    if (m) {
+      const answer = m[1]
+        .replace(/\\n/g, '\n')
+        .replace(/\\"/g, '"')
+        .replace(/\\\\/g, '\\')
+        .trim();
+      const refuse = /"refuse"\s*:\s*true/.test(candidate);
+      return { answer, refuse, used_context_ids: [] };
+    }
+    throw new Error('ungrounded_json');
+  }
 }
 
 function buildPrompt(question, contexts) {
@@ -37,7 +60,7 @@ function buildPrompt(question, contexts) {
       'Answer ONLY using the supplied contexts. Do not use outside knowledge.',
       'Keep answers to 2–4 short sentences.',
       'If the contexts are empty, unrelated, or too weak to answer, set refuse=true and answer="".',
-      'Respond with JSON only: {"answer":"string","refuse":boolean,"used_context_ids":["id"]}',
+      'Respond with JSON only: {"answer":"string","refuse":boolean}. Keep answer under 80 words.',
     ].join(' '),
     user: `Question: ${question}\n\nContexts:\n${blocks || '(none)'}`,
   };

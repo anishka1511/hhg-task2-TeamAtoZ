@@ -1,6 +1,6 @@
 /**
- * POST /api/stt — multipart audio → transcript
- * TODO (Builder 2): implement Sarvam adapter in services/stt/sarvam.js
+ * POST /api/stt — multipart audio → transcript (Sarvam)
+ * Owner: Builder 2
  */
 
 import { transcribeAudio } from '../services/stt/sarvam.js';
@@ -15,7 +15,16 @@ export async function registerSttRoutes(fastify) {
       });
     }
 
-    const buffer = await file.toBuffer();
+    let buffer;
+    try {
+      buffer = await file.toBuffer();
+    } catch (err) {
+      return reply.code(400).send({
+        error: 'Bad Request',
+        message: err.message || 'Failed to read uploaded audio.',
+      });
+    }
+
     const result = await transcribeAudio(buffer, {
       filename: file.filename,
       mimetype: file.mimetype,
