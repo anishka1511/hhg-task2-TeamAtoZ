@@ -3,8 +3,18 @@
  * Collection create/reset is indexing/scripts/build_index.py's job.
  */
 
+import dns from 'node:dns';
 import { QdrantClient } from '@qdrant/js-client-rest';
 import { vectorConfig, qdrantConfig } from '../../config/vectorConfig.js';
+
+// Free-tier Cloud + some ISP resolvers intermittently fail ("fetch failed").
+// Prefer public DNS + IPv4 so cold starts / sleep wakeups are more reliable.
+try {
+  dns.setServers(['8.8.8.8', '1.1.1.1', '9.9.9.9']);
+  dns.setDefaultResultOrder('ipv4first');
+} catch {
+  // ignore if restricted
+}
 
 let client = null;
 
@@ -14,12 +24,15 @@ function isTransient(err) {
     msg.includes('fetch failed') ||
     msg.includes('econnreset') ||
     msg.includes('etimedout') ||
+    msg.includes('enotfound') ||
+    msg.includes('eai_again') ||
     msg.includes('socket') ||
-    msg.includes('network')
+    msg.includes('network') ||
+    msg.includes('other side closed')
   );
 }
 
-async function withRetry(fn, { attempts = 3, delayMs = 200 } = {}) {
+async function withRetry(fn, { attempts = 5, delayMs = 400 } = {}) {
   let lastErr;
   for (let i = 0; i < attempts; i += 1) {
     try {
@@ -44,6 +57,7 @@ export function getQdrantClient() {
     apiKey,
     // Cloud version probes sometimes fail spuriously over flaky TLS.
     checkCompatibility: false,
+    timeout: 30000,
   });
   return client;
 }
