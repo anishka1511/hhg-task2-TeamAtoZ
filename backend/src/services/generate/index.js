@@ -1,12 +1,23 @@
 /**
  * Grounded generation — Owner: Builder 2
- * Answers only from retrieved contexts via Groq (English).
- * Indic localization (answer_hi / answer_mr) happens in the pipeline after guardrails.
+ * Default path prefers a fast Groq chat model (not reasoning gpt-oss).
+ * Optional ANSWER_MODE=extractive|hybrid|llm:
+ *   extractive — passages only (VANI-style evidence path, ~tens of ms after retrieve)
+ *   hybrid     — extractive when top score is high, else LLM
+ *   llm        — always Groq
  */
 
 import { groqChat } from './groq.js';
+import { assembleExtractiveAnswer } from './extractive.js';
 
-const DEFAULT_MODEL = 'openai/gpt-oss-20b';
+/** Fast Groq chat model — avoid openai/gpt-oss-* (reasoning; hundreds of ms). */
+const DEFAULT_MODEL = 'llama-3.1-8b-instant';
+
+function answerMode() {
+  const m = String(process.env.ANSWER_MODE || 'hybrid').trim().toLowerCase();
+  if (m === 'extractive' || m === 'llm' || m === 'hybrid') return m;
+  return 'hybrid';
+}
 
 function parseGroundedJson(text) {
   const trimmed = String(text).trim();
@@ -50,28 +61,37 @@ function parseGroundedJson(text) {
 }
 
 function buildPrompt(question, contexts) {
+  const maxChars = Number(process.env.CONTEXT_CHAR_LIMIT || 400);
   const blocks = contexts
     .map((c, i) => {
       const id = c.id ?? `ctx-${i}`;
       const score = typeof c.score === 'number' ? c.score.toFixed(3) : 'n/a';
-      const text = String(c.text || '').slice(0, 800);
+      const text = String(c.text || '').slice(0, maxChars);
       return `[${i + 1}] id=${id} score=${score}\n${text}`;
     })
     .join('\n\n');
 
   return {
     system: [
-      'You are a retrieval-grounded assistant for a voice RAG demo.',
-      'Answer ONLY using the supplied contexts. Do not use outside knowledge.',
-      'Keep answers to 2–4 short sentences in clear English.',
-      'If the contexts are empty, unrelated, or too weak to answer, set refuse=true and answer="".',
-      'Respond with JSON only: {"answer":"string","refuse":boolean}. Keep answer under 80 words.',
+      'Answer ONLY from the contexts. No outside knowledge.',
+      'Reply with 1–2 short English sentences.',
+      'If contexts cannot answer, refuse=true and answer="".',
+      'JSON only: {"answer":"string","refuse":boolean}',
     ].join(' '),
     user: `Question: ${question}\n\nContexts:\n${blocks || '(none)'}`,
   };
 }
 
-export async function generateAnswer({ question, contexts }) {
+function topScore(contexts) {
+  const list = Array.isArray(contexts) ? contexts : [];
+  let best = 0;
+  for (const c of list) {
+    if (typeof c.score === 'number' && c.score > best) best = c.score;
+  }
+  return best;
+}
+
+async function generateWithLlm({ question, contexts }) {
   const apiKey = process.env.LLM_API_KEY && String(process.env.LLM_API_KEY).trim();
   if (!apiKey) {
     return {
@@ -82,6 +102,7 @@ export async function generateAnswer({ question, contexts }) {
       answer: null,
       refuse: false,
       used_context_ids: [],
+      mode: 'llm',
     };
   }
 
@@ -92,10 +113,12 @@ export async function generateAnswer({ question, contexts }) {
       answer: '',
       refuse: true,
       used_context_ids: [],
+      mode: 'llm',
     };
   }
 
   const model = (process.env.LLM_MODEL || DEFAULT_MODEL).trim();
+  const maxTokens = Number(process.env.GENERATE_MAX_TOKENS || 96);
   const { system, user } = buildPrompt(question, list);
 
   try {
@@ -106,7 +129,9 @@ export async function generateAnswer({ question, contexts }) {
         { role: 'system', content: system },
         { role: 'user', content: user },
       ],
-      maxTokens: 384,
+      maxTokens,
+      jsonMode: true,
+      timeoutMs: Number(process.env.GENERATE_TIMEOUT_MS || 15000),
     });
 
     let parsed;
@@ -115,9 +140,10 @@ export async function generateAnswer({ question, contexts }) {
     } catch {
       return {
         ok: true,
-        answer: String(content).trim().slice(0, 600),
+        answer: String(content).trim().slice(0, 400),
         refuse: false,
         used_context_ids: list.map((c) => String(c.id)).filter(Boolean),
+        mode: 'llm',
       };
     }
 
@@ -127,6 +153,7 @@ export async function generateAnswer({ question, contexts }) {
         answer: '',
         refuse: true,
         used_context_ids: parsed.used_context_ids,
+        mode: 'llm',
       };
     }
 
@@ -138,6 +165,7 @@ export async function generateAnswer({ question, contexts }) {
         parsed.used_context_ids.length > 0
           ? parsed.used_context_ids
           : list.map((c) => String(c.id)).filter(Boolean),
+      mode: 'llm',
     };
   } catch (err) {
     return {
@@ -148,6 +176,27 @@ export async function generateAnswer({ question, contexts }) {
       answer: null,
       refuse: false,
       used_context_ids: [],
+      mode: 'llm',
     };
   }
+}
+
+export async function generateAnswer({ question, contexts }) {
+  const mode = answerMode();
+  const list = Array.isArray(contexts) ? contexts : [];
+
+  if (mode === 'extractive') {
+    return assembleExtractiveAnswer({ question, contexts: list });
+  }
+
+  if (mode === 'hybrid') {
+    const threshold = Number(process.env.HYBRID_EXTRACTIVE_MIN_SCORE || 0.55);
+    const extracted = assembleExtractiveAnswer({ question, contexts: list });
+    if (extracted.ok && !extracted.refuse && extracted.answer && topScore(list) >= threshold) {
+      return extracted;
+    }
+    // Fall through to LLM when extractive is weak
+  }
+
+  return generateWithLlm({ question, contexts: list });
 }

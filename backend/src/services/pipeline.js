@@ -60,8 +60,9 @@ function isTransientRetrieve(retrieval) {
 }
 
 async function retrieveOnce(question, strategy) {
+  const topK = Number(process.env.RETRIEVE_TOP_K || 3);
   return withTimeout(
-    retrieve(question, { strategy, top_k: 5 }),
+    retrieve(question, { strategy, top_k: Math.min(Math.max(topK, 1), 8) }),
     RETRIEVE_TIMEOUT_MS,
     'retrieve',
   );
@@ -163,10 +164,16 @@ export async function runQueryPipeline({ question, source, chunking_strategy }) 
 
   const englishAnswer = guardrail.allowed ? generation.answer : guardrail.fallbackAnswer;
 
-  // --- localize after guardrails (display only) ---
+  // --- localize after guardrails (display only; off by default for latency) ---
   let answer_hi = null;
   let answer_mr = null;
-  if (guardrail.allowed && englishAnswer && needsQueryTranslate(language)) {
+  const localizeAnswers = String(process.env.LOCALIZE_ANSWERS || 'false').toLowerCase() === 'true';
+  if (
+    localizeAnswers &&
+    guardrail.allowed &&
+    englishAnswer &&
+    needsQueryTranslate(language)
+  ) {
     const localized = await translateFromEnglish(englishAnswer, language);
     if (localized) {
       if (language === 'mr') answer_mr = localized;
@@ -199,6 +206,7 @@ export async function runQueryPipeline({ question, source, chunking_strategy }) 
         chunking_strategy: strategy,
         language,
         retrieve_question: retrieveQuestion,
+        answer_mode: generation.mode || null,
       },
     },
   };
