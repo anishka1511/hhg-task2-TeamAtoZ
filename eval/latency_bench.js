@@ -1,4 +1,6 @@
-# Latency eval harness — STUB (Builder 2)
-# Run N text queries against /api/query and compute P50 / P70 / P100.
-
-print("TODO(Builder 2): implement latency bench → docs/LATENCY_REPORT.md")
+#!/usr/bin/env node
+/**
+ * Alias entrypoint — prefer `node eval/query_bench.js`.
+ * Kept so docs that mention latency_bench.js still work.
+ */
+require('./query_bench.js');

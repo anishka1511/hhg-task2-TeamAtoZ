@@ -1,75 +1,86 @@
 # HHG Task 2 — Voice-Enabled RAG (Team AtoZ)
 
-Voice → **Sarvam** STT → multi-strategy chunking + vector retrieval → grounded answer (+ guardrails).
+Voice → **Sarvam** STT → multi-strategy retrieval (Qdrant) → grounded **Groq** answer → guardrails → UI.
 
 - **Repo:** https://github.com/anishka1511/hhg-task2-TeamAtoZ  
 - **Deadline:** 22 Aug 2026, 11:59 PM  
 - **Dataset:** [ai4bharat/MSMARCO-XI](https://huggingface.co/datasets/ai4bharat/MSMARCO-XI)  
-- **Team plan:** [docs/TEAM_TASKS.md](docs/TEAM_TASKS.md)
-
-> This commit is a **scaffold only**. STT, chunking, retrieval, generation, and deploy are owned by Builders per `docs/TEAM_TASKS.md`.
+- **Team plan:** [docs/TEAM_TASKS.md](docs/TEAM_TASKS.md)  
+- **Latency:** [docs/LATENCY_REPORT.md](docs/LATENCY_REPORT.md) · **Chunking:** [docs/CHUNKING.md](docs/CHUNKING.md)
 
 ## Pipeline
 
 ```text
-Mic / text → Sarvam STT (or text fallback) → retrieve (Qdrant) → LLM generate → guardrails → UI
+Mic / text → Sarvam STT (or text fallback) → retrieve (Qdrant) → Groq generate → guardrails → UI
 ```
 
-## Repo layout
-
-```text
-backend/     Fastify API (health, stt, query harness stubs)
-frontend/    Next.js baseline UI + mocks for Member 3
-indexing/    MSMARCO-XI ingest + chunking stubs (Builder 1)
-eval/        Latency bench stub (Builder 2)
-docs/        Team tasks, chunking, latency, promo
-docker-compose.yml   Local Qdrant
-```
-
-## Quick start (scaffold)
+## Quick start (local)
 
 ```bash
 cp .env.example .env
+cp .env.example backend/.env   # backend loads dotenv from its CWD
+# Fill: SARVAM_API_KEY, LLM_API_KEY, QDRANT_URL (+ :6333), QDRANT_API_KEY, QDRANT_COLLECTION
+
 npm run install:all
-docker compose up -d qdrant   # optional until indexing exists
 npm run dev
 ```
 
 - Frontend: http://localhost:3000  
-- Backend: http://localhost:3001/api/health  
+- Backend health: http://localhost:3001/api/health  
 
-Member 3 mock mode:
-
-```bash
-# in frontend/.env.local
-NEXT_PUBLIC_USE_MOCKS=true
-```
+Text **Ask** works without burning Sarvam credits. **Mic** → `/api/stt` → `/api/query` (`source: voice`).
 
 ## API contract (frozen)
 
-See [docs/TEAM_TASKS.md](docs/TEAM_TASKS.md). Summary:
-
-| Method | Path | Owner |
+| Method | Path | Notes |
 |--------|------|--------|
-| GET | `/api/health` | Builder 2 |
-| POST | `/api/stt` | Builder 2 (Sarvam) |
-| POST | `/api/query` | Builder 2 harness + Builder 1 retrieve |
+| GET | `/api/health` | `qdrant`, `stt`, `llm` status |
+| POST | `/api/stt` | multipart field `file` → Sarvam |
+| POST | `/api/query` | `{ question, source, chunking_strategy }` |
+| POST | `/api/retrieve` | Builder 1 retrieve-only |
+
+Strategies: `fixed_overlap` \| `semantic` \| `metadata_aware` (alias: `metadata`).
+
+## Latency bench
+
+Backend must be running with Qdrant + `LLM_API_KEY`:
+
+```bash
+npm run bench:query
+# writes eval/query_latency.json — fill docs/LATENCY_REPORT.md from that + eval/retrieve_latency.json
+```
+
+## Deploy shape
+
+| Piece | Recommendation |
+|-------|----------------|
+| Frontend | Vercel (Next.js) — set `NEXT_PUBLIC_API_URL` to public backend |
+| Backend | **Always-on** container (Railway / Fly / small VPS). Not sleeping free Render. |
+| Qdrant | Qdrant Cloud (already used) or Docker beside backend |
+| Image | `Dockerfile` at repo root (`node backend/src/server.js`) |
+
+### Backend env (production)
+
+Same as `.env.example`, plus:
+
+- `CORS_ORIGIN` = your Vercel URL (or `*` only for short demos)
+- `DEMO_PASSWORD` = optional shared secret; clients send `x-demo-password`
+- `RATE_LIMIT_MAX` / `RATE_LIMIT_WINDOW_MS` = soft limits on `/api/query` and `/api/stt`
+
+### Demo checklist
+
+1. Incognito → frontend → text question (in-corpus) → answer + contexts  
+2. Nonsense question → guardrail refusal  
+3. `/api/health` green on the public backend  
+4. Prefer text over mic during grading to save Sarvam credits  
 
 ## Roles
 
 | Role | Owns |
 |------|------|
 | Builder 1 | Chunking, Qdrant, retrieve |
-| Builder 2 | Sarvam, gen, guardrails, latency, deploy, baseline UI |
-| Member 3 | UI polish + videos/social ([plain English](docs/MEMBER3_PLAIN.md)) |
-
-## Deploy (decide host later)
-
-Shape (do not over-split):
-
-- Frontend → e.g. Vercel  
-- Backend → **one** always-on host (Railway paid / Fly / VPS) — not sleeping free Render  
-- Qdrant → Docker beside backend **or** Qdrant Cloud  
+| Builder 2 | Sarvam, generate, guardrails, latency, deploy, baseline UI |
+| Member 3 | UI polish + videos ([docs/MEMBER3_PLAIN.md](docs/MEMBER3_PLAIN.md)) |
 
 ## Branches
 

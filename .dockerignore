@@ -1,0 +1,12 @@
+# Ignore local deps / secrets when building from repo root
+node_modules
+**/node_modules
+.env
+**/.env
+frontend
+indexing
+eval
+docs
+.git
+*.md
+!README.md

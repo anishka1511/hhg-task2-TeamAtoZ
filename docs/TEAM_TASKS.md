@@ -33,14 +33,29 @@ Content-Type: multipart/form-data
 file=<audio>
 → { "transcript": "...", "duration_ms": 1234, "provider": "sarvam" }
 
+WS /api/stt/stream
+→ live PCM (16 kHz) in; JSON events out: ready | partial | final | vad | error
+(Google-like mic; requires WebSocket-capable host)
+
 POST /api/query
 { "question": "...", "source": "text" | "voice", "chunking_strategy": "fixed_overlap" | "semantic" | "metadata" }
 → {
   "answer": "...",
+  "answer_hi": null,
+  "answer_mr": null,
   "contexts": [{ "id": "...", "text": "...", "score": 0.0, "strategy": "..." }],
   "guardrail": { "allowed": true, "reason": null },
-  "latency_ms": { "stt": 0, "retrieve": 12, "generate": 80, "guardrail": 5, "total": 97 }
+  "latency_ms": { "stt": 0, "retrieve": 12, "generate": 80, "guardrail": 5, "total": 97 },
+  "meta": { "source": "text", "chunking_strategy": "fixed_overlap", "language": "en", "retrieve_question": "..." }
 }
+
+Optional localization (Indic demo path):
+- Detect `hi` / `mr` → translate question to English for retrieve + generate.
+- Guardrails run on the English `answer` only.
+- `answer_hi` / `answer_mr` = faithful Devanagari twin for UI (null when English or translate fails).
+- `meta.language` + `meta.retrieve_question` aid debugging.
+
+Prefer `SARVAM_LANGUAGE=unknown` so Marathi/Hindi speech can land in the text box before this pipeline.
 ```
 
 5. **Latency:** instrument every stage; publish **P50 / P70 / P100**. Treat **retrieve + generate + guardrails → final answer** as the 200ms target; report STT separately and honestly.
