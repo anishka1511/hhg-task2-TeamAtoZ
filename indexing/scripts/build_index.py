@@ -21,7 +21,14 @@ import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CONFIG_PATH = REPO_ROOT / "indexing" / "config.yaml"
-STRATEGIES = ("fixed_overlap", "semantic", "metadata_aware")
+STRATEGIES = (
+    "fixed_overlap",
+    "semantic",
+    "metadata_aware",
+    "token_window",
+    "structure_aware",
+    "recursive",
+)
 
 REQUIRED_TOP = ("embedding_model",)
 REQUIRED_QDRANT = ("collection_name", "vector_size", "distance")
@@ -108,7 +115,7 @@ def connect_qdrant(url: str, path: str | None = None):
         return client
 
     api_key = os.environ.get("QDRANT_API_KEY") or None
-    client = QdrantClient(url=url, api_key=api_key, timeout=60)
+    client = QdrantClient(url=url, api_key=api_key, timeout=120, check_compatibility=False)
     try:
         client.get_collections()
     except Exception as exc:  # noqa: BLE001
@@ -259,7 +266,25 @@ def upsert_chunks(
 
     for start in range(0, len(points), batch_size):
         batch = points[start : start + batch_size]
-        client.upsert(collection_name=collection_name, points=batch)
+        last_err: Exception | None = None
+        for attempt in range(1, 6):
+            try:
+                client.upsert(collection_name=collection_name, points=batch)
+                last_err = None
+                break
+            except Exception as exc:  # noqa: BLE001
+                last_err = exc
+                wait = min(2 ** attempt, 20)
+                print(
+                    f"upsert retry {attempt}/5 after error: {exc} "
+                    f"(sleep {wait}s)",
+                    file=sys.stderr,
+                )
+                import time
+
+                time.sleep(wait)
+        if last_err is not None:
+            raise last_err
         print(f"upserted {min(start + batch_size, len(points))}/{len(points)} points")
 
 

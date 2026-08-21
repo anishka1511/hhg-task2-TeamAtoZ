@@ -38,7 +38,7 @@ WS /api/stt/stream
 (Google-like mic; requires WebSocket-capable host)
 
 POST /api/query
-{ "question": "...", "source": "text" | "voice", "chunking_strategy": "fixed_overlap" | "semantic" | "metadata" }
+{ "question": "...", "source": "text" | "voice", "chunking_strategy": "fixed_overlap" | "semantic" | "metadata_aware" | "token_window" | "structure_aware" | "recursive" }
 → {
   "answer": "...",
   "answer_hi": null,
