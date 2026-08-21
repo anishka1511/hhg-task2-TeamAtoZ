@@ -34,7 +34,7 @@ file=<audio>
 → { "transcript": "...", "duration_ms": 1234, "provider": "sarvam" }
 
 POST /api/query
-{ "question": "...", "source": "text" | "voice", "chunking_strategy": "fixed_overlap" | "semantic" | "metadata" }
+{ "question": "...", "source": "text" | "voice", "chunking_strategy": "fixed_overlap" | "semantic" | "metadata_aware" | "token_window" | "structure_aware" | "recursive" }
 → {
   "answer": "...",
   "contexts": [{ "id": "...", "text": "...", "score": 0.0, "strategy": "..." }],

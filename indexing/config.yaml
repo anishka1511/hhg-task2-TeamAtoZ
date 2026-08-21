@@ -44,3 +44,13 @@ chunking:
   metadata_aware:
     # Prefer whole passage; only split if longer than this many characters
     split_threshold_chars: 800
+  token_window:
+    # ~word-sized windows (whitespace tokens); overlap keeps boundary context
+    size_tokens: 80
+    overlap_tokens: 16
+  structure_aware:
+    # Pack structural sections under this cap; fall back to paragraphs if no markers
+    max_chars: 512
+  recursive:
+    # Hierarchical split: \n\n → \n → sentences → hard chars, then pack
+    max_chars: 512

@@ -6,7 +6,14 @@
 import { embedQuery } from './embed.js';
 import { search } from './qdrantClient.js';
 
-const ALLOWED = new Set(['fixed_overlap', 'semantic', 'metadata_aware']);
+const ALLOWED = new Set([
+  'fixed_overlap',
+  'semantic',
+  'metadata_aware',
+  'token_window',
+  'structure_aware',
+  'recursive',
+]);
 
 export async function retrieve(query, { strategy = 'fixed_overlap', top_k = 5 } = {}) {
   if (!query || !String(query).trim()) {

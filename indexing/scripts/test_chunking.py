@@ -61,8 +61,8 @@ def main() -> None:
     unique_counts = set(sample_counts.values())
     if len(unique_counts) == 1:
         print(
-            "NOTE: all three strategies produced the same chunk count on these 10 "
-            "documents — all 10 sample passages are under every strategy's threshold "
+            "NOTE: all strategies produced the same chunk count on these 10 "
+            "documents — sample passages are under every strategy's threshold "
             "(or otherwise chunk identically). Chunking behavior will diverge on "
             "longer passages elsewhere in the dataset."
         )

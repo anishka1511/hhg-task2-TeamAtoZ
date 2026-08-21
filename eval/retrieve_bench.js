@@ -23,7 +23,14 @@ const { pathToFileURL } = require('url');
 
 const REPO_ROOT = path.resolve(__dirname, '..');
 const OUT_PATH = path.join(REPO_ROOT, 'eval', 'retrieve_latency.json');
-const STRATEGIES = ['fixed_overlap', 'semantic', 'metadata_aware'];
+const STRATEGIES = [
+  'fixed_overlap',
+  'semantic',
+  'metadata_aware',
+  'token_window',
+  'structure_aware',
+  'recursive',
+];
 const NUM_WARMUP = 5;
 const TOP_K = 5;
 
@@ -103,7 +110,7 @@ function stats(samples) {
 }
 
 function formatRow(name, s) {
-  return `${name.padEnd(18)} ${String(s.p50).padStart(8)} ${String(s.p70).padStart(8)} ${String(s.p100).padStart(8)}`;
+  return `${name.padEnd(20)} ${String(s.p50).padStart(8)} ${String(s.p70).padStart(8)} ${String(s.p100).padStart(8)}`;
 }
 
 async function timedRetrieve(retrieve, question, strategy) {
@@ -159,7 +166,7 @@ async function main() {
   }
 
   console.log('\nRetrieve-only latency (ms)');
-  console.log(`${'strategy'.padEnd(18)} ${'P50'.padStart(8)} ${'P70'.padStart(8)} ${'P100'.padStart(8)}`);
+  console.log(`${'strategy'.padEnd(20)} ${'P50'.padStart(8)} ${'P70'.padStart(8)} ${'P100'.padStart(8)}`);
   for (const s of STRATEGIES) {
     console.log(formatRow(s, payload.by_strategy[s]));
   }
