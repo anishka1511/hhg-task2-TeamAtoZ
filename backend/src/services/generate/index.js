@@ -1,6 +1,7 @@
 /**
  * Grounded generation — Owner: Builder 2
- * Answers only from retrieved contexts via Groq.
+ * Answers only from retrieved contexts via Groq (English).
+ * Indic localization (answer_hi / answer_mr) happens in the pipeline after guardrails.
  */
 
 import { groqChat } from './groq.js';
@@ -19,6 +20,16 @@ function parseGroundedJson(text) {
     }
   }
 
+  const extractField = (name) => {
+    const m = candidate.match(new RegExp(`"${name}"\\s*:\\s*"((?:\\\\.|[^"\\\\])*)"`));
+    if (!m) return '';
+    return m[1]
+      .replace(/\\n/g, '\n')
+      .replace(/\\"/g, '"')
+      .replace(/\\\\/g, '\\')
+      .trim();
+  };
+
   try {
     const parsed = JSON.parse(candidate);
     return {
@@ -29,14 +40,8 @@ function parseGroundedJson(text) {
         : [],
     };
   } catch {
-    // Truncated JSON from max_tokens — still pull the answer field if present.
-    const m = candidate.match(/"answer"\s*:\s*"((?:\\.|[^"\\])*)"/);
-    if (m) {
-      const answer = m[1]
-        .replace(/\\n/g, '\n')
-        .replace(/\\"/g, '"')
-        .replace(/\\\\/g, '\\')
-        .trim();
+    const answer = extractField('answer');
+    if (answer) {
       const refuse = /"refuse"\s*:\s*true/.test(candidate);
       return { answer, refuse, used_context_ids: [] };
     }
@@ -58,7 +63,7 @@ function buildPrompt(question, contexts) {
     system: [
       'You are a retrieval-grounded assistant for a voice RAG demo.',
       'Answer ONLY using the supplied contexts. Do not use outside knowledge.',
-      'Keep answers to 2–4 short sentences.',
+      'Keep answers to 2–4 short sentences in clear English.',
       'If the contexts are empty, unrelated, or too weak to answer, set refuse=true and answer="".',
       'Respond with JSON only: {"answer":"string","refuse":boolean}. Keep answer under 80 words.',
     ].join(' '),
@@ -101,6 +106,7 @@ export async function generateAnswer({ question, contexts }) {
         { role: 'system', content: system },
         { role: 'user', content: user },
       ],
+      maxTokens: 384,
     });
 
     let parsed;

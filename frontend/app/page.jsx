@@ -7,11 +7,43 @@ import refusedMock from '../mocks/query.refused.json';
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 const USE_MOCKS = process.env.NEXT_PUBLIC_USE_MOCKS === 'true';
 const DEMO_PASSWORD = process.env.NEXT_PUBLIC_DEMO_PASSWORD || '';
+const SILENCE_MS = Number(process.env.NEXT_PUBLIC_VOICE_SILENCE_MS || 1500);
 
 function apiHeaders(extra = {}) {
   const headers = { ...extra };
   if (DEMO_PASSWORD) headers['x-demo-password'] = DEMO_PASSWORD;
   return headers;
+}
+
+function streamWsUrl() {
+  const u = new URL(API_URL);
+  u.protocol = u.protocol === 'https:' ? 'wss:' : 'ws:';
+  u.pathname = '/api/stt/stream';
+  u.search = '';
+  if (DEMO_PASSWORD) u.searchParams.set('demo_password', DEMO_PASSWORD);
+  return u.toString();
+}
+
+function downsampleTo16k(input, inputRate) {
+  const target = 16000;
+  if (inputRate === target) return input;
+  const ratio = inputRate / target;
+  const outLen = Math.max(1, Math.floor(input.length / ratio));
+  const out = new Float32Array(outLen);
+  for (let i = 0; i < outLen; i += 1) {
+    out[i] = input[Math.min(input.length - 1, Math.floor(i * ratio))];
+  }
+  return out;
+}
+
+function floatTo16BitPCM(float32) {
+  const buf = new ArrayBuffer(float32.length * 2);
+  const view = new DataView(buf);
+  for (let i = 0; i < float32.length; i += 1) {
+    const s = Math.max(-1, Math.min(1, float32[i]));
+    view.setInt16(i * 2, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+  }
+  return new Uint8Array(buf);
 }
 
 const STRATEGIES = [
@@ -22,6 +54,7 @@ const STRATEGIES = [
 
 /**
  * Builder 2: functional baseline for e2e demos.
+ * Live mic: Sarvam streaming STT → text box → auto-submit on pause.
  * Member 3: polish layout/CSS only — do not change API contract.
  */
 export default function Home() {
@@ -33,8 +66,24 @@ export default function Home() {
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
   const [status, setStatus] = useState('');
-  const mediaRecorderRef = useRef(null);
-  const chunksRef = useRef([]);
+
+  const strategyRef = useRef(strategy);
+  const liveRef = useRef({
+    ws: null,
+    context: null,
+    stream: null,
+    processor: null,
+    source: null,
+    dest: null,
+    silenceTimer: null,
+    transcript: '',
+    submitted: false,
+    cancelOnly: false,
+  });
+
+  useEffect(() => {
+    strategyRef.current = strategy;
+  }, [strategy]);
 
   useEffect(() => {
     if (USE_MOCKS) {
@@ -52,6 +101,13 @@ export default function Home() {
       .catch(() => setHealth('unreachable'));
   }, []);
 
+  useEffect(() => {
+    return () => {
+      stopLiveSession({ cancelOnly: true });
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   async function runQuery(q, source) {
     const res = await fetch(`${API_URL}/api/query`, {
       method: 'POST',
@@ -59,7 +115,7 @@ export default function Home() {
       body: JSON.stringify({
         question: q,
         source,
-        chunking_strategy: strategy,
+        chunking_strategy: strategyRef.current,
       }),
     });
     const data = await res.json();
@@ -99,80 +155,229 @@ export default function Home() {
     }
   }
 
+  function clearSilenceTimer() {
+    const live = liveRef.current;
+    if (live.silenceTimer) {
+      clearTimeout(live.silenceTimer);
+      live.silenceTimer = null;
+    }
+  }
+
+  function armSilenceTimer() {
+    const live = liveRef.current;
+    clearSilenceTimer();
+    live.silenceTimer = setTimeout(() => {
+      if (!live.submitted && live.transcript.trim()) {
+        finishAndQuery();
+      }
+    }, SILENCE_MS);
+  }
+
+  function teardownAudio() {
+    const live = liveRef.current;
+    clearSilenceTimer();
+    try {
+      live.processor?.disconnect?.();
+      live.source?.disconnect?.();
+      live.dest?.disconnect?.();
+    } catch {
+      /* ignore */
+    }
+    try {
+      if (live.context && live.context.state !== 'closed') live.context.close();
+    } catch {
+      /* ignore */
+    }
+    live.stream?.getTracks?.().forEach((t) => t.stop());
+    live.processor = null;
+    live.source = null;
+    live.dest = null;
+    live.context = null;
+    live.stream = null;
+  }
+
+  function stopLiveSession({ cancelOnly = false } = {}) {
+    const live = liveRef.current;
+    live.cancelOnly = cancelOnly;
+    clearSilenceTimer();
+    try {
+      if (live.ws && live.ws.readyState === WebSocket.OPEN) {
+        live.ws.send(JSON.stringify({ type: 'flush' }));
+        live.ws.send(JSON.stringify({ type: 'stop' }));
+        live.ws.close();
+      }
+    } catch {
+      /* ignore */
+    }
+    live.ws = null;
+    teardownAudio();
+    setRecording(false);
+  }
+
+  async function finishAndQuery() {
+    const live = liveRef.current;
+    if (live.submitted) return;
+    const q = (live.transcript || '').trim();
+    if (!q) {
+      stopLiveSession({ cancelOnly: true });
+      setStatus('');
+      setError('No speech detected. Try again.');
+      return;
+    }
+    live.submitted = true;
+    clearSilenceTimer();
+    stopLiveSession({ cancelOnly: false });
+    setQuestion(q);
+    setLoading(true);
+    setError('');
+    setResult(null);
+    setStatus('retrieving…');
+
+    try {
+      if (USE_MOCKS) {
+        setResult(successMock);
+        return;
+      }
+      const data = await runQuery(q, 'voice');
+      setResult(data);
+    } catch (err) {
+      setError(err.message || 'Voice path failed');
+    } finally {
+      setLoading(false);
+      setStatus('');
+    }
+  }
+
+  async function startLiveMic() {
+    setError('');
+    setResult(null);
+    setQuestion('');
+    liveRef.current.transcript = '';
+    liveRef.current.submitted = false;
+    liveRef.current.cancelOnly = false;
+
+    if (USE_MOCKS) {
+      setRecording(true);
+      setStatus('recording (mock)…');
+      setQuestion('What was the Manhattan Project?');
+      liveRef.current.transcript = 'What was the Manhattan Project?';
+      setTimeout(() => finishAndQuery(), 800);
+      return;
+    }
+
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        channelCount: 1,
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: true,
+      },
+    });
+
+    const ws = new WebSocket(streamWsUrl());
+    liveRef.current.ws = ws;
+
+    await new Promise((resolve, reject) => {
+      const t = setTimeout(() => reject(new Error('STT stream connect timeout')), 10000);
+      ws.onopen = () => {
+        clearTimeout(t);
+        resolve();
+      };
+      ws.onerror = () => {
+        clearTimeout(t);
+        reject(new Error('STT stream failed to connect'));
+      };
+    });
+
+    ws.onmessage = (ev) => {
+      let msg;
+      try {
+        msg = JSON.parse(ev.data);
+      } catch {
+        return;
+      }
+      if (msg.type === 'partial' || msg.type === 'final') {
+        const text = String(msg.text || '').trim();
+        if (!text) return;
+        liveRef.current.transcript = text;
+        setQuestion(text);
+        setStatus('listening… (pause to search)');
+        armSilenceTimer();
+        if (msg.type === 'final') {
+          // slight delay so flush can settle, then silence timer still wins if user keeps talking
+          armSilenceTimer();
+        }
+        return;
+      }
+      if (msg.type === 'vad') {
+        const sig = String(msg.signal || '').toUpperCase();
+        if (sig.includes('END') || sig.includes('STOP')) {
+          armSilenceTimer();
+        }
+        return;
+      }
+      if (msg.type === 'error') {
+        setError(msg.message || 'STT stream error');
+        stopLiveSession({ cancelOnly: true });
+        setStatus('');
+      }
+    };
+
+    ws.onclose = () => {
+      if (!liveRef.current.submitted && recording) {
+        // unexpected close
+      }
+    };
+
+    const context = new AudioContext();
+    if (context.state === 'suspended') await context.resume();
+    const source = context.createMediaStreamSource(stream);
+    const processor = context.createScriptProcessor(4096, 1, 1);
+    const dest = context.createMediaStreamDestination();
+
+    processor.onaudioprocess = (ev) => {
+      if (!liveRef.current.ws || liveRef.current.ws.readyState !== WebSocket.OPEN) return;
+      const input = ev.inputBuffer.getChannelData(0);
+      const down = downsampleTo16k(input, context.sampleRate);
+      const pcm = floatTo16BitPCM(down);
+      try {
+        liveRef.current.ws.send(pcm);
+      } catch {
+        /* ignore */
+      }
+    };
+
+    source.connect(processor);
+    processor.connect(dest);
+
+    liveRef.current.context = context;
+    liveRef.current.stream = stream;
+    liveRef.current.processor = processor;
+    liveRef.current.source = source;
+    liveRef.current.dest = dest;
+
+    setRecording(true);
+    setStatus('listening… speak, then pause to search');
+  }
+
   async function toggleMic() {
     if (loading) return;
 
     if (recording) {
-      mediaRecorderRef.current?.stop();
+      // Manual Stop = cancel (do not auto-submit)
+      stopLiveSession({ cancelOnly: true });
+      setStatus('');
+      setError('');
       return;
     }
 
-    setError('');
-    setResult(null);
-
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-        ? 'audio/webm;codecs=opus'
-        : 'audio/webm';
-      const recorder = new MediaRecorder(stream, { mimeType: mime });
-      chunksRef.current = [];
-      recorder.ondataavailable = (ev) => {
-        if (ev.data?.size) chunksRef.current.push(ev.data);
-      };
-      recorder.onstop = async () => {
-        stream.getTracks().forEach((t) => t.stop());
-        setRecording(false);
-        const blob = new Blob(chunksRef.current, { type: mime.split(';')[0] });
-        if (!blob.size) {
-          setError('No audio captured. Try again.');
-          return;
-        }
-
-        setLoading(true);
-        setStatus('transcribing…');
-        try {
-          if (USE_MOCKS) {
-            setQuestion('What was the Manhattan Project?');
-            setResult(successMock);
-            return;
-          }
-
-          const form = new FormData();
-          form.append('file', blob, 'recording.webm');
-          const sttRes = await fetch(`${API_URL}/api/stt`, {
-            method: 'POST',
-            headers: apiHeaders(),
-            body: form,
-          });
-          const sttData = await sttRes.json();
-          if (!sttRes.ok) {
-            throw new Error(sttData.message || sttData.error || 'STT failed');
-          }
-
-          const transcript = String(sttData.transcript || '').trim();
-          if (!transcript) throw new Error('Empty transcript from Sarvam');
-          setQuestion(transcript);
-          setStatus('retrieving…');
-          const data = await runQuery(transcript, 'voice');
-          if (data.latency_ms && sttData.duration_ms != null) {
-            data.latency_ms = { ...data.latency_ms, stt: sttData.duration_ms };
-          }
-          setResult(data);
-        } catch (err) {
-          setError(err.message || 'Voice path failed');
-        } finally {
-          setLoading(false);
-          setStatus('');
-        }
-      };
-
-      mediaRecorderRef.current = recorder;
-      recorder.start();
-      setRecording(true);
-      setStatus('recording… click Mic again to stop');
+      await startLiveMic();
     } catch (err) {
-      setError(err.name === 'NotAllowedError' ? 'Mic permission denied' : err.message || 'Mic error');
+      stopLiveSession({ cancelOnly: true });
+      setError(
+        err.name === 'NotAllowedError' ? 'Mic permission denied' : err.message || 'Mic error',
+      );
       setRecording(false);
       setStatus('');
     }
@@ -198,7 +403,7 @@ export default function Home() {
           <input
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
-            placeholder="Ask a question (text fallback)"
+            placeholder="Ask a question (or tap Mic — live transcript)"
             style={{ flex: 1, padding: '0.65rem 0.75rem', fontSize: 16 }}
             disabled={loading || recording}
           />
@@ -215,7 +420,7 @@ export default function Home() {
               color: recording ? '#fff' : undefined,
             }}
           >
-            {recording ? 'Stop' : 'Mic'}
+            {recording ? 'Cancel' : 'Mic'}
           </button>
         </div>
         <label style={{ fontSize: 13, color: '#444' }}>
@@ -236,8 +441,8 @@ export default function Home() {
       </form>
 
       <p style={{ fontSize: 13, color: '#666' }}>
-        Prefer text while developing (saves Sarvam credits). Mic records WebM → <code>/api/stt</code> →{' '}
-        <code>/api/query</code>.
+        Mic streams live Sarvam STT into the box (Google-like). Pause ~{Math.round(SILENCE_MS / 1000)}s to auto-search.
+        Cancel stops without sending. Prefer text Ask to save credits.
         {status ? (
           <>
             {' '}
@@ -252,8 +457,33 @@ export default function Home() {
 
       {result && (
         <section style={{ marginTop: 20 }}>
-          <h2 style={{ fontSize: 18 }}>Answer</h2>
+          {result.answer_mr ? (
+            <>
+              <h2 style={{ fontSize: 18 }}>मराठी</h2>
+              <p lang="mr">{result.answer_mr}</p>
+            </>
+          ) : null}
+
+          {result.answer_hi ? (
+            <>
+              <h2 style={{ fontSize: 18, marginTop: result.answer_mr ? 16 : 0 }}>हिंदी</h2>
+              <p lang="hi">{result.answer_hi}</p>
+            </>
+          ) : null}
+
+          <h2 style={{ fontSize: 18, marginTop: result.answer_mr || result.answer_hi ? 16 : 0 }}>
+            {result.answer_mr || result.answer_hi ? 'Answer (English)' : 'Answer'}
+          </h2>
           <p>{result.answer}</p>
+
+          {result.meta?.language && result.meta.language !== 'en' ? (
+            <p style={{ fontSize: 12, color: '#666' }}>
+              Detected: {result.meta.language}
+              {result.meta.retrieve_question
+                ? ` · retrieved with: “${result.meta.retrieve_question}”`
+                : ''}
+            </p>
+          ) : null}
 
           {result.guardrail && (
             <p

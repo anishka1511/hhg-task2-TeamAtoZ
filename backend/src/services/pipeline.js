@@ -1,12 +1,14 @@
 /**
  * Query orchestration harness — Owner: Builder 2
- * Stages: validate → retrieve → generate → guardrails (+ latency)
+ * Stages: detect/translate → retrieve → generate → guardrails → localize (+ latency)
  */
 
 import { retrieve } from './retrieve/index.js';
 import { generateAnswer } from './generate/index.js';
 import { applyGuardrails } from './guardrails/index.js';
 import { createTimer } from './latency/timer.js';
+import { detectLanguage, needsQueryTranslate } from './localize/detect.js';
+import { translateToEnglish, translateFromEnglish } from './localize/translate.js';
 
 const RETRIEVE_HTTP = {
   empty_query: 400,
@@ -15,7 +17,7 @@ const RETRIEVE_HTTP = {
 };
 
 const RETRIEVE_TIMEOUT_MS = Number(process.env.RETRIEVE_TIMEOUT_MS || 15000);
-const GENERATE_TIMEOUT_MS = Number(process.env.GENERATE_TIMEOUT_MS || 25000);
+const GENERATE_TIMEOUT_MS = Number(process.env.GENERATE_TIMEOUT_MS || 45000);
 
 /** Plan/docs say "metadata"; indexed value is "metadata_aware". */
 export function normalizeStrategy(raw) {
@@ -76,14 +78,23 @@ async function generateOnce(question, contexts) {
 export async function runQueryPipeline({ question, source, chunking_strategy }) {
   const timer = createTimer();
   const strategy = normalizeStrategy(chunking_strategy);
+  const originalQuestion = String(question || '').trim();
+
+  // --- language: translate Indic queries to English for retrieve/generate ---
+  const language = detectLanguage(originalQuestion);
+  let retrieveQuestion = originalQuestion;
+  if (needsQueryTranslate(language)) {
+    const english = await translateToEnglish(originalQuestion);
+    if (english) retrieveQuestion = english;
+  }
 
   // --- retrieve (Builder 1) ---
   timer.mark('retrieve_start');
   let retrieval;
   try {
-    retrieval = await retrieveOnce(question, strategy);
+    retrieval = await retrieveOnce(retrieveQuestion, strategy);
     if (!retrieval.ok && isTransientRetrieve(retrieval)) {
-      retrieval = await retrieveOnce(question, strategy);
+      retrieval = await retrieveOnce(retrieveQuestion, strategy);
     }
   } catch (err) {
     timer.mark('retrieve_end');
@@ -109,13 +120,13 @@ export async function runQueryPipeline({ question, source, chunking_strategy }) 
     };
   }
 
-  // --- generate (Builder 2) ---
+  // --- generate (Builder 2) — English, grounded ---
   timer.mark('generate_start');
   let generation;
   try {
-    generation = await generateOnce(question, retrieval.contexts);
+    generation = await generateOnce(retrieveQuestion, retrieval.contexts);
     if (isTransientGenerate(generation)) {
-      generation = await generateOnce(question, retrieval.contexts);
+      generation = await generateOnce(retrieveQuestion, retrieval.contexts);
     }
   } catch (err) {
     timer.mark('generate_end');
@@ -140,15 +151,28 @@ export async function runQueryPipeline({ question, source, chunking_strategy }) 
     };
   }
 
-  // --- guardrails (Builder 2) ---
+  // --- guardrails on English answer only ---
   timer.mark('guardrail_start');
   const guardrail = await applyGuardrails({
-    question,
+    question: retrieveQuestion,
     answer: generation.answer,
     contexts: retrieval.contexts,
     refuse: generation.refuse,
   });
   timer.mark('guardrail_end');
+
+  const englishAnswer = guardrail.allowed ? generation.answer : guardrail.fallbackAnswer;
+
+  // --- localize after guardrails (display only) ---
+  let answer_hi = null;
+  let answer_mr = null;
+  if (guardrail.allowed && englishAnswer && needsQueryTranslate(language)) {
+    const localized = await translateFromEnglish(englishAnswer, language);
+    if (localized) {
+      if (language === 'mr') answer_mr = localized;
+      else answer_hi = localized;
+    }
+  }
 
   const latency_ms = {
     stt: 0,
@@ -161,14 +185,21 @@ export async function runQueryPipeline({ question, source, chunking_strategy }) 
   return {
     ok: true,
     payload: {
-      answer: guardrail.allowed ? generation.answer : guardrail.fallbackAnswer,
+      answer: englishAnswer,
+      answer_hi,
+      answer_mr,
       contexts: retrieval.contexts,
       guardrail: {
         allowed: guardrail.allowed,
         reason: guardrail.reason,
       },
       latency_ms,
-      meta: { source, chunking_strategy: strategy },
+      meta: {
+        source,
+        chunking_strategy: strategy,
+        language,
+        retrieve_question: retrieveQuestion,
+      },
     },
   };
 }

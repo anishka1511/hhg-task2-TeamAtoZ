@@ -3,7 +3,7 @@
  * Protects Sarvam / Groq credits on public demos.
  *
  * Env:
- *   DEMO_PASSWORD          if set, require header x-demo-password (or body.demo_password)
+ *   DEMO_PASSWORD          if set, require header x-demo-password (or ?demo_password=)
  *   RATE_LIMIT_MAX         requests per window per IP (default 60)
  *   RATE_LIMIT_WINDOW_MS   window size (default 60000)
  */
@@ -25,6 +25,16 @@ function prune(windowMs) {
   }
 }
 
+function isProtectedPath(urlPath) {
+  return (
+    urlPath === '/api/query' ||
+    urlPath === '/api/stt' ||
+    urlPath === '/api/stt/stream' ||
+    urlPath.startsWith('/api/query') ||
+    urlPath.startsWith('/api/stt')
+  );
+}
+
 export function registerHardening(fastify) {
   const demoPassword = process.env.DEMO_PASSWORD && String(process.env.DEMO_PASSWORD).trim();
   const max = Number(process.env.RATE_LIMIT_MAX || 60);
@@ -32,14 +42,12 @@ export function registerHardening(fastify) {
 
   fastify.addHook('onRequest', async (request, reply) => {
     const url = request.url.split('?')[0];
-    const protectedPath =
-      url === '/api/query' || url === '/api/stt' || url.startsWith('/api/query') || url.startsWith('/api/stt');
-    if (!protectedPath) return;
+    if (!isProtectedPath(url)) return;
 
-    // Rate limit
     prune(windowMs);
     const ip = clientIp(request);
-    const key = `${ip}:${url.startsWith('/api/stt') ? 'stt' : 'query'}`;
+    const bucket = url.includes('/api/stt') ? 'stt' : 'query';
+    const key = `${ip}:${bucket}`;
     const times = hits.get(key) || [];
     const recent = times.filter((t) => Date.now() - t < windowMs);
     if (recent.length >= max) {
@@ -51,17 +59,15 @@ export function registerHardening(fastify) {
     recent.push(Date.now());
     hits.set(key, recent);
 
-    // Demo password (optional)
     if (demoPassword) {
       const header = request.headers['x-demo-password'];
       const fromHeader = typeof header === 'string' ? header : '';
-      // Body not parsed yet on onRequest for JSON — also allow query string for quick demos.
       const fromQuery =
         typeof request.query?.demo_password === 'string' ? request.query.demo_password : '';
       if (fromHeader !== demoPassword && fromQuery !== demoPassword) {
         return reply.code(401).send({
           error: 'Unauthorized',
-          message: 'Demo password required. Send header x-demo-password.',
+          message: 'Demo password required. Send header x-demo-password or ?demo_password=.',
         });
       }
     }
