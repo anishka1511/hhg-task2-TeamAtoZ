@@ -910,6 +910,7 @@ body {
   flex-direction: column;
   justify-content: space-between;
   z-index: 2;
+  padding-bottom: calc(38px + env(safe-area-inset-bottom, 0px));
 }
 
 .beach-container {
@@ -1760,12 +1761,44 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
   font-family: var(--font-mono);
   font-size: 10.5px;
   font-weight: 900;
   color: var(--hhg-pink);
   text-transform: uppercase;
   margin-bottom: 4px;
+}
+
+.beach-plate-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.beach-plate-copy-btn {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border: 2px solid #000000;
+  border-radius: 4px;
+  background: var(--hhg-yellow);
+  color: #000000;
+  cursor: pointer;
+  transition: transform 0.12s, box-shadow 0.12s;
+}
+
+.beach-plate-copy-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 2px 2px 0 #000000;
+}
+
+.beach-plate-timing {
+  color: var(--hhg-pink);
 }
 
 .beach-plate-text {
@@ -2483,4 +2516,149 @@ body {
   transform: none !important;
   pointer-events: auto !important;
   box-shadow: 6px 6px 0 #000000;
+}
+
+/* ── Tier 2 UI polish ─────────────────────────────────────────── */
+
+.beach-transcript-bubble {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 2px solid #000000;
+  border-radius: 10px;
+  background: #ffffff;
+  box-shadow: 3px 3px 0 #000000;
+}
+
+.beach-transcript-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 900;
+  text-transform: uppercase;
+  color: var(--hhg-pink);
+  letter-spacing: 0.04em;
+}
+
+.beach-transcript-text {
+  font-family: var(--font-deva);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.45;
+  color: #000000;
+  quotes: '\201C' '\201D';
+}
+
+.beach-site-footer {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 900;
+  padding: 4px 12px calc(4px + env(safe-area-inset-bottom, 0px));
+  border-top: 2px solid #000000;
+  background: var(--hhg-green-dark);
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.18);
+}
+
+.beach-site-footer-inner {
+  max-width: 1040px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 28px;
+}
+
+.beach-site-footer p {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.92);
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: 0.02em;
+}
+
+.beach-footer-tag {
+  color: var(--hhg-yellow);
+}
+
+.beach-footer-github {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border: 1.5px solid rgba(255, 255, 255, 0.35);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  transition: transform 0.12s, background 0.12s, color 0.12s;
+}
+
+.beach-footer-github:hover {
+  transform: translateY(-1px);
+  background: var(--hhg-yellow);
+  border-color: #000000;
+  color: #000000;
+  box-shadow: 2px 2px 0 #000000;
+}
+
+.beach-footer-github svg {
+  width: 16px;
+  height: 16px;
+}
+
+.beach-mobile-sticky {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  .beach-stage-wrapper.has-mobile-sticky {
+    padding-bottom: calc(118px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .beach-mobile-sticky {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: calc(38px + env(safe-area-inset-bottom, 0px));
+    z-index: 1000;
+    padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px));
+    border-top: 3px solid #000000;
+    background: #fefbf0;
+    box-shadow: 0 -4px 0 rgba(0, 0, 0, 0.08);
+    opacity: 0;
+    transform: translateY(100%);
+    pointer-events: none;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+  }
+
+  .beach-mobile-sticky.is-visible {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+  }
+
+  .beach-mobile-sticky-input {
+    flex: 1;
+    min-height: 44px;
+    font-size: 14px;
+  }
+
+  .beach-mobile-sticky-ask {
+    flex-shrink: 0;
+    min-width: 64px;
+  }
 }
