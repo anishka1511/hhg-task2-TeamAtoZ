@@ -23,6 +23,15 @@ const STRATEGIES = [
   { id: 'recursive', label: 'recursive' },
 ];
 
+const STRATEGY_IDS = new Set(STRATEGIES.map((s) => s.id));
+const STRATEGY_LABELS = new Set(STRATEGIES.map((s) => s.label.toLowerCase()));
+
+function isStrategyToken(text) {
+  const t = String(text || '').trim();
+  if (!t) return false;
+  return STRATEGY_IDS.has(t) || STRATEGY_LABELS.has(t.toLowerCase());
+}
+
 const ANSWER_LANGS = [
   { id: 'en', label: 'English' },
   { id: 'hi', label: 'हिंदी' },
@@ -70,6 +79,7 @@ export default function Home() {
   const [showStickyAsk, setShowStickyAsk] = useState(false);
 
   const strategyRef = useRef(strategy);
+  const lastQueryRef = useRef({ text: '', source: 'text' });
   const searchAnchorRef = useRef(null);
   const mediaRef = useRef({
     recorder: null,
@@ -184,10 +194,19 @@ export default function Home() {
     if (!next.trim()) setVoiceTranscript(null);
   }
 
+  function resolveQueryText(...candidates) {
+    for (const candidate of candidates) {
+      const text = String(candidate || '').trim();
+      if (text && !isStrategyToken(text)) return text;
+    }
+    return '';
+  }
+
   async function executeQuery(qText, source = 'text') {
-    const q = (qText || question).trim();
+    const q = resolveQueryText(qText, question, voiceTranscript, lastQueryRef.current.text);
     if (!q || loading || transcribing) return;
 
+    lastQueryRef.current = { text: q, source };
     if (source === 'text') setVoiceTranscript(null);
 
     setLoading(true);
@@ -342,11 +361,20 @@ export default function Home() {
 
   function selectStrategy(id) {
     setStrategy(id);
-    const q = question.trim();
-    if (q && !loading && !transcribing) {
-      strategyRef.current = id;
-      executeQuery(q, 'text');
-    }
+    strategyRef.current = id;
+    if (loading || transcribing) return;
+
+    const q = resolveQueryText(
+      question,
+      voiceTranscript,
+      lastQueryRef.current.text,
+    );
+    if (!q) return;
+
+    const source = (voiceTranscript || lastQueryRef.current.source === 'voice')
+      ? 'voice'
+      : 'text';
+    executeQuery(q, source);
   }
 
   function toggleCtxExpand(index) {
@@ -485,7 +513,11 @@ export default function Home() {
                           key={st.id}
                           type="button"
                           disabled={busy}
-                          onClick={() => selectStrategy(st.id)}
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            selectStrategy(st.id);
+                          }}
                           className={`beach-fader-btn ${strategy === st.id ? 'active' : ''}`}
                           title={st.id}
                         >

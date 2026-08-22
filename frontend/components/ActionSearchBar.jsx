@@ -33,7 +33,7 @@ export default function ActionSearchBar({
   onChange,
   onSubmit,
   disabled = false,
-  placeholder = 'Ask a question in Marathi, Hindi, or English',
+  placeholder = 'Type, speak, or pick a suggested prompt',
   inlineControl = null,
 }) {
   const [selectedLang, setSelectedLang] = useState('en');
