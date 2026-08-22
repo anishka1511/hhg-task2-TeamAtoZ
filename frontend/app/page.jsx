@@ -346,6 +346,13 @@ export default function Home() {
 
   const totalMs = Number(result?.latency_ms?.total) || 0;
   const isRefusal = result?.guardrail && result.guardrail.allowed === false;
+  const hasQueryInput = Boolean(question.trim());
+  const isStatusError =
+    statusMsg.startsWith('STT error') ||
+    statusMsg.startsWith('Mic blocked') ||
+    statusMsg.startsWith('Copy failed') ||
+    statusMsg === 'Backend connection error';
+
   const busy = loading || transcribing;
   const healthOk = health.includes('ok') && !health.includes('unreachable') && !health.includes('down');
   const visibleLangs = result
@@ -433,25 +440,27 @@ export default function Home() {
                   disabled={busy}
                 />
 
-                <div className="beach-mixer-controls-row">
-                  <div className="beach-channel-tag">
+                <div className={`beach-mixer-controls-row ${isStatusError ? 'has-status-error' : ''}`}>
+                  <div className={`beach-channel-tag ${isStatusError ? 'is-error' : ''}`}>
                     <span>{statusMsg}</span>
                   </div>
 
-                  <div className="beach-strategy-faders">
-                    {STRATEGIES.map((st) => (
-                      <button
-                        key={st.id}
-                        type="button"
-                        disabled={busy}
-                        onClick={() => selectStrategy(st.id)}
-                        className={`beach-fader-btn ${strategy === st.id ? 'active' : ''}`}
-                        title={st.id}
-                      >
-                        {st.label}
-                      </button>
-                    ))}
-                  </div>
+                  {hasQueryInput && (
+                    <div className="beach-strategy-faders">
+                      {STRATEGIES.map((st) => (
+                        <button
+                          key={st.id}
+                          type="button"
+                          disabled={busy}
+                          onClick={() => selectStrategy(st.id)}
+                          className={`beach-fader-btn ${strategy === st.id ? 'active' : ''}`}
+                          title={st.id}
+                        >
+                          {st.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 

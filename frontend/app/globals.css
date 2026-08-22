@@ -1680,6 +1680,29 @@ body {
   gap: 5px;
 }
 
+.beach-mixer-controls-row.has-status-error {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.beach-channel-tag.is-error {
+  font-family: var(--font-outfit);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.45;
+  color: #000000;
+  padding: 12px 14px;
+  border: 3px solid #000000;
+  border-radius: 12px;
+  background: #ffe4ef;
+  box-shadow: 3px 3px 0 #000000;
+  width: 100%;
+}
+
+.beach-channel-tag.is-error span {
+  display: block;
+}
+
 .beach-strategy-faders {
   display: flex;
   flex-wrap: wrap;
