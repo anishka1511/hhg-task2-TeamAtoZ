@@ -33,17 +33,20 @@ export default function ActionSearchBar({
   onChange,
   onSubmit,
   disabled = false,
-  placeholder = 'Ask a question, or tap the voice grid to speak…',
+  placeholder = 'Ask a question in Marathi, Hindi, or English',
+  inlineControl = null,
 }) {
   const [selectedLang, setSelectedLang] = useState('en');
   const [detectedLang, setDetectedLang] = useState(null);
   const [open, setOpen] = useState(false);
   const [highlightIndex, setHighlightIndex] = useState(0);
   const [dropdownRect, setDropdownRect] = useState(null);
+  const [isMobileLayout, setIsMobileLayout] = useState(false);
   const rootRef = useRef(null);
   const portalRef = useRef(null);
   const inputRef = useRef(null);
   const prevDetectedRef = useRef(null);
+  const pendingCloseRef = useRef(null);
 
   const activeLang = selectedLang;
   const isEmpty = !value.trim();
@@ -53,7 +56,7 @@ export default function ActionSearchBar({
     [activeLang],
   );
 
-  const showDropdown = open && !disabled && isEmpty && suggestions.length > 0;
+  const showDropdown = open && !disabled && suggestions.length > 0;
 
   const syncDropdownRect = useCallback(() => {
     const rect = measureDropdownRect(inputRef.current);
@@ -61,14 +64,45 @@ export default function ActionSearchBar({
     return rect;
   }, []);
 
-  const openDropdown = useCallback(() => {
-    if (disabled || value.trim()) return;
-    syncDropdownRect();
-    setOpen(true);
-  }, [disabled, value, syncDropdownRect]);
-
   const closeDropdown = useCallback(() => {
     setOpen(false);
+  }, []);
+
+  const cancelPendingClose = useCallback(() => {
+    if (pendingCloseRef.current !== null) {
+      cancelAnimationFrame(pendingCloseRef.current);
+      pendingCloseRef.current = null;
+    }
+  }, []);
+
+  const scheduleCloseDropdown = useCallback(() => {
+    cancelPendingClose();
+    pendingCloseRef.current = requestAnimationFrame(() => {
+      pendingCloseRef.current = null;
+      closeDropdown();
+    });
+  }, [cancelPendingClose, closeDropdown]);
+
+  const openDropdown = useCallback(() => {
+    if (disabled || value.trim()) return;
+    cancelPendingClose();
+    syncDropdownRect();
+    setOpen(true);
+  }, [disabled, value, syncDropdownRect, cancelPendingClose]);
+
+  const openPromptsDropdown = useCallback(() => {
+    if (disabled) return;
+    cancelPendingClose();
+    syncDropdownRect();
+    setOpen(true);
+  }, [disabled, syncDropdownRect, cancelPendingClose]);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 720px)');
+    const syncLayout = () => setIsMobileLayout(mq.matches);
+    syncLayout();
+    mq.addEventListener('change', syncLayout);
+    return () => mq.removeEventListener('change', syncLayout);
   }, []);
 
   useEffect(() => {
@@ -82,15 +116,11 @@ export default function ActionSearchBar({
   }, [value]);
 
   useEffect(() => {
-    if (!isEmpty) closeDropdown();
-  }, [isEmpty, closeDropdown]);
-
-  useEffect(() => {
     setHighlightIndex(0);
   }, [suggestions, activeLang]);
 
   useLayoutEffect(() => {
-    if (!showDropdown) return undefined;
+    if (!showDropdown || !isMobileLayout) return undefined;
 
     syncDropdownRect();
     window.addEventListener('resize', syncDropdownRect);
@@ -99,22 +129,22 @@ export default function ActionSearchBar({
       window.removeEventListener('resize', syncDropdownRect);
       window.removeEventListener('scroll', syncDropdownRect, true);
     };
-  }, [showDropdown, selectedLang, suggestions.length, syncDropdownRect]);
+  }, [showDropdown, isMobileLayout, selectedLang, suggestions.length, syncDropdownRect]);
 
   useEffect(() => {
-    if (!showDropdown) return;
+    if (!showDropdown || !isMobileLayout) return;
     const el = portalRef.current?.querySelector('.beach-action-suggestion.is-highlighted');
     el?.scrollIntoView({ block: 'nearest' });
-  }, [highlightIndex, showDropdown]);
+  }, [highlightIndex, showDropdown, isMobileLayout]);
 
   useEffect(() => {
-    function onDocMouseDown(e) {
-      if (rootRef.current?.contains(e.target)) return;
-      if (portalRef.current?.contains(e.target)) return;
+    function onDocPointerDown(e) {
+      const target = e.target;
+      if (portalRef.current?.contains(target)) return;
       closeDropdown();
     }
-    document.addEventListener('mousedown', onDocMouseDown);
-    return () => document.removeEventListener('mousedown', onDocMouseDown);
+    document.addEventListener('pointerdown', onDocPointerDown, true);
+    return () => document.removeEventListener('pointerdown', onDocPointerDown, true);
   }, [closeDropdown]);
 
   function selectSuggestion(item) {
@@ -166,9 +196,7 @@ export default function ActionSearchBar({
 
   function pickLang(langId) {
     setSelectedLang(langId);
-    if (!value.trim()) {
-      openDropdown();
-    }
+    openPromptsDropdown();
     inputRef.current?.focus({ preventScroll: true });
   }
 
@@ -179,24 +207,31 @@ export default function ActionSearchBar({
     }
   }
 
-  const rect = showDropdown
+  const portalRect = showDropdown && isMobileLayout
     ? dropdownRect ?? measureDropdownRect(inputRef.current)
     : null;
 
-  const dropdown =
-    showDropdown && rect ? (
+  const listMaxHeight = portalRect?.maxListHeight ?? MAX_LIST_HEIGHT;
+
+  const dropdownPanel =
+    showDropdown ? (
       <div
         ref={portalRef}
         id="beach-action-suggestions"
-        className="beach-action-dropdown is-open beach-action-dropdown-portal"
+        className={`beach-action-dropdown is-open ${isMobileLayout ? 'beach-action-dropdown-portal' : 'beach-action-dropdown-inline'}`}
         role="listbox"
-        style={{
-          position: 'fixed',
-          top: rect.top,
-          left: rect.left,
-          width: rect.width,
-          zIndex: 9999,
-        }}
+        style={
+          isMobileLayout && portalRect
+            ? {
+                position: 'fixed',
+                top: portalRect.top,
+                left: portalRect.left,
+                width: portalRect.width,
+                zIndex: 9999,
+              }
+            : undefined
+        }
+        onPointerDown={(e) => e.stopPropagation()}
       >
         <div className="beach-action-dropdown-head">
           <span>Suggested prompts</span>
@@ -204,7 +239,7 @@ export default function ActionSearchBar({
         </div>
         <ul
           className="beach-action-dropdown-list"
-          style={{ maxHeight: rect.maxListHeight }}
+          style={{ maxHeight: listMaxHeight }}
         >
           {suggestions.map((item, index) => (
             <li key={item.id}>
@@ -214,7 +249,7 @@ export default function ActionSearchBar({
                 aria-selected={highlightIndex === index}
                 className={`beach-action-suggestion ${highlightIndex === index ? 'is-highlighted' : ''} ${item.isRefusal ? 'is-refusal' : ''}`}
                 onMouseEnter={() => setHighlightIndex(index)}
-                onMouseDown={(e) => e.preventDefault()}
+                onPointerDown={(e) => e.preventDefault()}
                 onClick={() => selectSuggestion(item)}
               >
                 <span className="beach-action-suggestion-title">{item.title}</span>
@@ -227,10 +262,27 @@ export default function ActionSearchBar({
       </div>
     ) : null;
 
+  const showPortalDropdown = Boolean(isMobileLayout && portalRect && dropdownPanel);
+
   return (
     <div className="beach-action-search" ref={rootRef}>
-      <div className="beach-action-search-toolbar">
-        <span className="beach-action-search-toolbar-label">Prompts</span>
+      <div
+        className="beach-action-search-toolbar"
+        onPointerDown={(e) => e.stopPropagation()}
+      >
+        <button
+          type="button"
+          className="beach-action-search-toolbar-label beach-action-prompts-trigger"
+          onPointerDown={(e) => {
+            e.stopPropagation();
+            openPromptsDropdown();
+          }}
+          disabled={disabled}
+          aria-expanded={showDropdown}
+          aria-controls="beach-action-suggestions"
+        >
+          Prompts
+        </button>
         <div className="beach-action-search-langs" role="tablist" aria-label="Prompt language">
           {PROMPT_LANGS.map((lang) => (
             <button
@@ -240,6 +292,7 @@ export default function ActionSearchBar({
               aria-selected={selectedLang === lang.id}
               className={`beach-action-lang-tab ${selectedLang === lang.id ? 'active' : ''}`}
               disabled={disabled}
+              onPointerDown={(e) => e.stopPropagation()}
               onClick={() => pickLang(lang.id)}
             >
               {lang.label}
@@ -253,41 +306,63 @@ export default function ActionSearchBar({
         )}
       </div>
 
-      <form onSubmit={handleSubmit} className="beach-search-row beach-action-search-form">
-        <div className="beach-action-input-wrap">
-          <input
-            ref={inputRef}
-            className="beach-query-input beach-action-input"
-            value={value}
-            onChange={(e) => handleInputChange(e.target.value)}
-            onFocus={() => {
-              if (isEmpty) openDropdown();
-            }}
-            onMouseDown={() => {
-              if (isEmpty) openDropdown();
-            }}
-            onKeyDown={handleKeyDown}
-            placeholder={placeholder}
-            disabled={disabled}
-            role="combobox"
-            aria-expanded={showDropdown}
-            aria-controls="beach-action-suggestions"
-            aria-autocomplete="list"
-            autoComplete="off"
-          />
-        </div>
-
-        <button
-          type="submit"
-          className="beach-drop-beat-btn"
-          disabled={disabled || !value.trim()}
+      <div className="beach-action-search-form">
+        <form
+          onSubmit={handleSubmit}
+          className="beach-search-row"
+          onPointerDown={(e) => e.stopPropagation()}
         >
-          {disabled ? '…' : 'ASK'}
-        </button>
-      </form>
+          <div className="beach-action-input-wrap">
+            {isEmpty && isMobileLayout && (
+              <div className="beach-input-marquee" aria-hidden="true">
+                <div className="beach-input-marquee-track">
+                  <span className="beach-input-marquee-text">{placeholder}</span>
+                  <span className="beach-input-marquee-text">{placeholder}</span>
+                </div>
+              </div>
+            )}
+            <input
+              ref={inputRef}
+              className={`beach-query-input beach-action-input ${isEmpty && isMobileLayout ? 'is-empty' : ''}`}
+              value={value}
+              onChange={(e) => handleInputChange(e.target.value)}
+              onFocus={() => {
+                if (isEmpty) openDropdown();
+              }}
+              onPointerDown={() => {
+                cancelPendingClose();
+                if (isEmpty) openDropdown();
+              }}
+              onKeyDown={handleKeyDown}
+              placeholder={isMobileLayout ? '' : placeholder}
+              aria-label={placeholder}
+              disabled={disabled}
+              role="combobox"
+              aria-expanded={showDropdown}
+              aria-controls="beach-action-suggestions"
+              aria-autocomplete="list"
+              autoComplete="off"
+            />
+          </div>
 
-      {typeof document !== 'undefined' && dropdown
-        ? createPortal(dropdown, document.body)
+          {inlineControl ? (
+            <div className="beach-search-inline-voice">{inlineControl}</div>
+          ) : null}
+
+          <button
+            type="submit"
+            className="beach-drop-beat-btn beach-action-ask-btn"
+            disabled={disabled || !value.trim()}
+          >
+            {disabled ? '…' : 'ASK'}
+          </button>
+        </form>
+
+        {!isMobileLayout && dropdownPanel}
+      </div>
+
+      {typeof document !== 'undefined' && showPortalDropdown
+        ? createPortal(dropdownPanel, document.body)
         : null}
 
       <div className="beach-action-shortcuts" aria-hidden="true">

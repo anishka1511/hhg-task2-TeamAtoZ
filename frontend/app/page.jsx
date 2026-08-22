@@ -61,7 +61,7 @@ export default function Home() {
   const [result, setResult] = useState(null);
   const [health, setHealth] = useState('checking…');
   const [statusMsg, setStatusMsg] = useState(
-    'Ask a question in Marathi, Hindi, or English — or tap the voice grid to speak',
+    'Ask a question in Marathi, Hindi, or English',
   );
   const [voiceLevel, setVoiceLevel] = useState(0);
   const [answerLang, setAnswerLang] = useState('en');
@@ -447,19 +447,6 @@ export default function Home() {
 
           <div className="beach-dj-rig-body">
             <div className="beach-turntables-row">
-              <div className="beach-turntable-unit">
-                <VoiceReactiveGrid
-                  level={voiceLevel}
-                  active={isRecording}
-                  processing={busy && !isRecording}
-                  disabled={busy && !isRecording}
-                  onClick={toggleMic}
-                />
-                <span className="beach-turntable-caption">
-                  {isRecording ? 'LISTENING' : busy ? 'GENERATING' : 'VOICE'}
-                </span>
-              </div>
-
               <div className="beach-channel-panel">
                 <div ref={searchAnchorRef}>
                   <ActionSearchBar
@@ -467,6 +454,15 @@ export default function Home() {
                     onChange={handleQuestionChange}
                     onSubmit={(q) => executeQuery(q, 'text')}
                     disabled={busy}
+                    inlineControl={
+                      <VoiceReactiveGrid
+                        level={voiceLevel}
+                        active={isRecording}
+                        processing={busy && !isRecording}
+                        disabled={busy && !isRecording}
+                        onClick={toggleMic}
+                      />
+                    }
                   />
                 </div>
 
@@ -501,16 +497,31 @@ export default function Home() {
                 </div>
               </div>
 
-              <div className="beach-turntable-unit">
-                <div
-                  className={`beach-vinyl-platter ${busy ? 'spinning' : ''}`}
-                  title="Retrieval engine"
-                >
-                  <div className="beach-vinyl-center-label">RAG</div>
+              <div className="beach-turntable-row-compact">
+                <div className="beach-turntable-unit beach-turntable-voice">
+                  <VoiceReactiveGrid
+                    level={voiceLevel}
+                    active={isRecording}
+                    processing={busy && !isRecording}
+                    disabled={busy && !isRecording}
+                    onClick={toggleMic}
+                  />
+                  <span className="beach-turntable-caption">
+                    {isRecording ? 'LISTENING' : busy ? 'GENERATING' : 'VOICE'}
+                  </span>
                 </div>
-                <span className="beach-turntable-caption">
-                  {busy ? 'SEARCHING' : 'RETRIEVE'}
-                </span>
+
+                <div className="beach-turntable-unit beach-turntable-rag">
+                  <div
+                    className={`beach-vinyl-platter ${busy ? 'spinning' : ''}`}
+                    title="Retrieval engine"
+                  >
+                    <div className="beach-vinyl-center-label">RAG</div>
+                  </div>
+                  <span className="beach-turntable-caption">
+                    {busy ? 'SEARCHING' : 'RETRIEVE'}
+                  </span>
+                </div>
               </div>
             </div>
 
