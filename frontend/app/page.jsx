@@ -9,6 +9,7 @@ import VoiceReactiveGrid from '../components/VoiceReactiveGrid';
 import LatencyMixer from '../components/LatencyMixer';
 import RefusalBanner from '../components/RefusalBanner';
 import ActionSearchBar from '../components/ActionSearchBar';
+import { getRandomPrompt } from '../data/demoPrompts';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 const USE_MOCKS = process.env.NEXT_PUBLIC_USE_MOCKS === 'true';
@@ -377,6 +378,13 @@ export default function Home() {
     executeQuery(q, source);
   }
 
+  function runRandomRetrieve() {
+    if (busy) return;
+    const item = getRandomPrompt();
+    setQuestion(item.question);
+    executeQuery(item.question, 'text');
+  }
+
   function toggleCtxExpand(index) {
     setExpandedCtx((prev) => {
       const next = new Set(prev);
@@ -451,7 +459,7 @@ export default function Home() {
           </div>
 
           <p className="beach-hero-subtag">
-            Voice-enabled RAG · Team AtoZ · ask in Marathi, Hindi, or English
+            Voice-enabled RAG
           </p>
         </section>
 
@@ -544,14 +552,18 @@ export default function Home() {
                 </div>
 
                 <div className="beach-turntable-unit beach-turntable-rag">
-                  <div
+                  <button
+                    type="button"
                     className={`beach-vinyl-platter ${busy ? 'spinning' : ''}`}
-                    title="Retrieval engine"
+                    title="Pick a random demo query"
+                    aria-label="Random retrieve — pick a random demo query"
+                    disabled={busy}
+                    onClick={runRandomRetrieve}
                   >
                     <div className="beach-vinyl-center-label">RAG</div>
-                  </div>
+                  </button>
                   <span className="beach-turntable-caption">
-                    {busy ? 'SEARCHING' : 'RETRIEVE'}
+                    {busy ? 'SEARCHING' : 'RANDOM RETRIEVE'}
                   </span>
                 </div>
               </div>

@@ -113,3 +113,8 @@ export function getPromptsForLang(lang, query = '') {
 
   return [...filtered, ...refusals];
 }
+
+export function getRandomPrompt() {
+  const pool = Object.values(PROMPT_CATALOG).flat();
+  return pool[Math.floor(Math.random() * pool.length)];
+}
