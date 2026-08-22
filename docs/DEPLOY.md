@@ -51,6 +51,18 @@ Framework: **Next.js 14** (`frontend/package.json` → `"next": "^14.0.4"`).
 
 `frontend/vercel.json` only sets region (`bom1`); do not override build/output there unless you have a specific reason.
 
+### Troubleshooting: "No entrypoint found … src/main.js …"
+
+This means Vercel is building the **repo root**, not `frontend/`. Root `package.json` has no `next` dependency, so Vercel looks for `src/server.js` etc. and fails.
+
+**Fix (Vercel dashboard):**
+1. **Settings → General → Root Directory** → set to **`frontend`** → Save
+2. **Settings → Build & Deployment → Framework Preset** → **Next.js** (not Other)
+3. Turn **Override off** for Build Command and Output Directory
+4. Redeploy (push to `main` or Redeploy latest)
+
+**Do not deploy the backend on Vercel** — backend goes on Railway (Docker). Vercel is frontend only.
+
 ## Smoke test
 
 1. `GET https://BACKEND/api/health` → `qdrant.ok`, `stt`, `llm` ok  
