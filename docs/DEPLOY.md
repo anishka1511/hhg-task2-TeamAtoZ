@@ -36,9 +36,20 @@ Live mic uses `WS /api/stt/stream` (Sarvam streaming proxy). The host must suppo
 
 ## Frontend (Vercel)
 
-1. Import the GitHub repo; root directory `frontend` (or monorepo setting).
-2. Env: `NEXT_PUBLIC_API_URL=https://YOUR_BACKEND_URL` (use `https` so the UI opens `wss://` for streaming).
-3. Optional: `NEXT_PUBLIC_DEMO_PASSWORD=...`, `NEXT_PUBLIC_VOICE_SILENCE_MS=1500`
+Framework: **Next.js 14** (`frontend/package.json` → `"next": "^14.0.4"`).
+
+1. Import the GitHub repo on Vercel.
+2. **Settings → General → Root Directory:** `frontend` → Save.
+3. **Settings → Build & Deployment → Framework Preset:** **Next.js** (not Other).
+4. Leave **Build Command** / **Output Directory** at defaults (Override **off**):
+   - Build: `npm run build` or `next build`
+   - Output: `.next`
+5. **Environment Variables:**
+   - `NEXT_PUBLIC_API_URL=https://YOUR_BACKEND_URL` (Railway URL, `https`, no trailing slash)
+   - Optional: `NEXT_PUBLIC_DEMO_PASSWORD=...`, `NEXT_PUBLIC_VOICE_SILENCE_MS=1500`
+6. Deploy (push to `main` or Redeploy after changing preset).
+
+`frontend/vercel.json` only sets region (`bom1`); do not override build/output there unless you have a specific reason.
 
 ## Smoke test
 
