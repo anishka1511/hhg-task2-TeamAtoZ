@@ -1,12 +1,17 @@
 /**
- * Groq-backed translate helpers for Indic demo path.
- * Fail soft: callers fall back to original / omit localized answer.
+ * Translate helpers for Indic demo path.
+ * Default: Sarvam /translate (fast). Fallback: Groq when Sarvam fails or TRANSLATE_PROVIDER=groq.
  */
 
 import { groqChat } from '../generate/groq.js';
+import { sarvamFromEnglish, sarvamToEnglish } from './sarvamTranslate.js';
 
-/** Only model confirmed on current Groq free tier (llama-* ids are decommissioned). */
-const DEFAULT_MODEL = 'openai/gpt-oss-20b';
+const GROQ_DEFAULT_MODEL = 'openai/gpt-oss-20b';
+
+function translateProvider() {
+  const p = String(process.env.TRANSLATE_PROVIDER || 'sarvam').trim().toLowerCase();
+  return p === 'groq' ? 'groq' : 'sarvam';
+}
 
 function extractJsonField(text, field) {
   const trimmed = String(text || '').trim();
@@ -32,56 +37,17 @@ function extractJsonField(text, field) {
   return null;
 }
 
-function getApiKey() {
+function getGroqApiKey() {
   return process.env.LLM_API_KEY && String(process.env.LLM_API_KEY).trim();
 }
 
-function getModel() {
-  return (process.env.LLM_MODEL || DEFAULT_MODEL).trim();
+function getGroqModel() {
+  return (process.env.LLM_MODEL || GROQ_DEFAULT_MODEL).trim();
 }
 
-function plainEnglishFallback(content) {
-  const trimmed = String(content || '').trim();
-  if (!trimmed) return null;
-  // If model returned plain text instead of JSON, use it when it looks like English.
-  if (/^[\x20-\x7E\u00A0-\u024F]+$/.test(trimmed.replace(/\s/g, '')) || /[a-zA-Z]/.test(trimmed)) {
-    return trimmed.replace(/^["']|["']$/g, '').trim();
-  }
-  return null;
-}
-
-async function callGroq(messages, maxTokens) {
-  const apiKey = getApiKey();
+async function groqTranslateToEnglish(text) {
+  const apiKey = getGroqApiKey();
   if (!apiKey) return null;
-  try {
-    return await groqChat({
-      apiKey,
-      model: getModel(),
-      messages,
-      maxTokens,
-      jsonMode: true,
-    });
-  } catch {
-    try {
-      return await groqChat({
-        apiKey,
-        model: getModel(),
-        messages,
-        maxTokens,
-        jsonMode: false,
-      });
-    } catch {
-      return null;
-    }
-  }
-}
-
-/**
- * @param {string} text
- * @returns {Promise<string|null>} English text or null on failure
- */
-export async function translateToEnglish(text) {
-  if (!String(text || '').trim()) return null;
 
   const messages = [
     {
@@ -92,17 +58,69 @@ export async function translateToEnglish(text) {
     { role: 'user', content: String(text).trim() },
   ];
 
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    const content = await callGroq(messages, 512);
-    if (!content) continue;
-    const english = extractJsonField(content, 'english') || plainEnglishFallback(content);
-    if (english) return english;
+  try {
+    const content = await groqChat({
+      apiKey,
+      model: getGroqModel(),
+      messages,
+      maxTokens: 512,
+      jsonMode: true,
+    });
+    return extractJsonField(content, 'english');
+  } catch {
+    return null;
   }
-  return null;
+}
+
+async function groqTranslateFromEnglish(text, target) {
+  const apiKey = getGroqApiKey();
+  if (!apiKey) return null;
+
+  const langName = target === 'mr' ? 'मराठी (Marathi)' : 'हिंदी (Hindi)';
+  const messages = [
+    {
+      role: 'system',
+      content: [
+        `Translate the English answer into ${langName}.`,
+        'Use Devanagari only. Keep the same facts.',
+        'JSON only: {"localized":"string"}',
+      ].join(' '),
+    },
+    { role: 'user', content: String(text).trim() },
+  ];
+
+  try {
+    const content = await groqChat({
+      apiKey,
+      model: getGroqModel(),
+      messages,
+      maxTokens: 768,
+      jsonMode: true,
+    });
+    return extractJsonField(content, 'localized');
+  } catch {
+    return null;
+  }
 }
 
 /**
- * @param {string} text English answer
+ * @param {string} text
+ * @param {'hi'|'mr'|undefined} [sourceLang]
+ * @returns {Promise<string|null>}
+ */
+export async function translateToEnglish(text, sourceLang) {
+  if (!String(text || '').trim()) return null;
+
+  if (translateProvider() === 'sarvam') {
+    const sarvam = await sarvamToEnglish(text, sourceLang);
+    if (sarvam) return sarvam;
+  }
+
+  return groqTranslateToEnglish(text);
+}
+
+/**
+ * @param {string} text
  * @param {'hi'|'mr'} target
  * @returns {Promise<string|null>}
  */
@@ -110,30 +128,10 @@ export async function translateFromEnglish(text, target) {
   if (!String(text || '').trim()) return null;
   if (target !== 'hi' && target !== 'mr') return null;
 
-  const langName = target === 'mr' ? 'मराठी (Marathi)' : 'हिंदी (Hindi)';
-  const scriptNote =
-    target === 'mr'
-      ? 'Use शुद्ध मराठी in Devanagari only (no English words, no Roman script).'
-      : 'Use शुद्ध हिंदी in Devanagari only (no English words, no Roman script).';
-
-  const messages = [
-    {
-      role: 'system',
-      content: [
-        `Translate the English answer into ${langName}.`,
-        scriptNote,
-        'Keep the SAME facts — do not add or drop information.',
-        'JSON only: {"localized":"string"}',
-      ].join(' '),
-    },
-    { role: 'user', content: String(text).trim() },
-  ];
-
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    const content = await callGroq(messages, 768);
-    if (!content) continue;
-    const localized = extractJsonField(content, 'localized');
-    if (localized) return localized;
+  if (translateProvider() === 'sarvam') {
+    const sarvam = await sarvamFromEnglish(text, target);
+    if (sarvam) return sarvam;
   }
-  return null;
+
+  return groqTranslateFromEnglish(text, target);
 }

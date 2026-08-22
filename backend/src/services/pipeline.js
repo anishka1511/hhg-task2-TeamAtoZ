@@ -85,7 +85,7 @@ export async function runQueryPipeline({ question, source, chunking_strategy }) 
   const language = detectLanguage(originalQuestion);
   let retrieveQuestion = originalQuestion;
   if (needsQueryTranslate(language)) {
-    const english = await translateToEnglish(originalQuestion);
+    const english = await translateToEnglish(originalQuestion, language);
     if (english) {
       retrieveQuestion = english;
     } else {
