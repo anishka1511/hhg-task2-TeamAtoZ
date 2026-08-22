@@ -110,17 +110,81 @@ body {
   gap: 10px;
 }
 
+.beach-context-list-head {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+  color: var(--hhg-pink);
+  letter-spacing: 0.06em;
+}
+
 .beach-context-item {
   font-size: 13px;
   line-height: 1.45;
   color: var(--hhg-forest-ink);
-  border-top: 1px solid rgba(0, 0, 0, 0.12);
-  padding-top: 10px;
+  border: 2px solid #000000;
+  border-radius: 10px;
+  background: #fefbf0;
+  padding: 10px 12px;
+  box-shadow: 2px 2px 0 #000000;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.beach-context-item.is-expanded {
+  background: #fffef8;
+}
+
+.beach-context-item-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.beach-context-item-meta {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  word-break: break-all;
+}
+
+.beach-context-item-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.beach-context-action-btn {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border: 2px solid #000000;
+  border-radius: 4px;
+  background: var(--hhg-yellow);
+  color: #000000;
+  cursor: pointer;
+  transition: transform 0.12s, box-shadow 0.12s;
+}
+
+.beach-context-action-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 2px 2px 0 #000000;
 }
 
 .beach-context-item p {
-  margin-top: 4px;
-  opacity: 0.88;
+  margin-top: 8px;
+  opacity: 0.92;
+}
+
+.beach-grounded-plate.is-refusal {
+  border-color: var(--hhg-pink);
+  box-shadow: 3px 3px 0 var(--hhg-pink);
+  animation: beachRefusalScratch 0.45s ease;
 }
 
 .beach-grounded-plate.is-refusal .beach-plate-text {
@@ -1908,4 +1972,264 @@ body {
 .beach-social-pill:hover {
   color: #ffffff;
   transform: translateY(-2px) scale(1.05);
+}
+
+/* ── Tier 1 UI polish ─────────────────────────────────────────── */
+
+.beach-demo-prompts {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.beach-demo-prompts-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: var(--hhg-forest-ink);
+  opacity: 0.75;
+}
+
+.beach-demo-chip {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border: 2px solid #000000;
+  border-radius: 999px;
+  background: #fefbf0;
+  color: #000000;
+  cursor: pointer;
+  transition: transform 0.12s, box-shadow 0.12s, background 0.12s;
+}
+
+.beach-demo-chip:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 2px 2px 0 #000000;
+  background: var(--hhg-yellow);
+}
+
+.beach-demo-chip:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.beach-demo-chip.is-refusal {
+  background: #ffe4ef;
+  color: var(--hhg-pink);
+}
+
+.beach-lang-tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 8px 0 6px;
+}
+
+.beach-lang-tab {
+  font-family: var(--font-deva);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 12px;
+  border: 2px solid #000000;
+  border-radius: 999px;
+  background: #fefbf0;
+  color: #000000;
+  cursor: pointer;
+  transition: transform 0.12s, box-shadow 0.12s, background 0.12s;
+}
+
+.beach-lang-tab.active {
+  background: var(--hhg-yellow);
+  box-shadow: 2px 2px 0 #000000;
+  transform: translateY(-1px);
+}
+
+.beach-latency-mixer {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 2px solid #000000;
+  border-radius: 10px;
+  background: #f0fdf4;
+  box-shadow: 2px 2px 0 #000000;
+}
+
+.beach-latency-mixer-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.beach-latency-mixer-title {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+  color: var(--hhg-forest-ink);
+}
+
+.beach-latency-target-badge {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border: 2px solid #000000;
+  border-radius: 999px;
+}
+
+.beach-latency-target-badge.is-fast {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.beach-latency-target-badge.is-slow {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.beach-latency-total {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--hhg-forest-ink);
+}
+
+.beach-latency-bar {
+  display: flex;
+  height: 8px;
+  border: 2px solid #000000;
+  border-radius: 999px;
+  overflow: hidden;
+  margin-bottom: 10px;
+  background: #ffffff;
+}
+
+.beach-latency-bar-segment {
+  min-width: 2px;
+  transition: width 0.35s ease;
+}
+
+.beach-latency-channels {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.beach-latency-channel {
+  padding: 6px 8px;
+  border: 2px solid #000000;
+  border-radius: 8px;
+  background: #ffffff;
+  text-align: center;
+}
+
+.beach-latency-channel-label {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: var(--hhg-pink);
+  margin-bottom: 2px;
+}
+
+.beach-latency-channel-value {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 900;
+  color: #000000;
+}
+
+.beach-latency-channel-unit {
+  font-size: 9px;
+  font-weight: 700;
+  opacity: 0.65;
+  margin-left: 2px;
+}
+
+.beach-refusal-banner {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 3px solid var(--hhg-pink);
+  border-radius: 12px;
+  background: #ffe4ef;
+  box-shadow: 3px 3px 0 var(--hhg-pink);
+  animation: beachRefusalScratch 0.45s ease;
+}
+
+.beach-refusal-banner-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+.beach-refusal-banner-title {
+  margin: 0;
+  font-family: var(--font-party);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--hhg-pink);
+  text-transform: uppercase;
+}
+
+.beach-refusal-reason-chip {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border: 2px solid #000000;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #000000;
+}
+
+.beach-refusal-banner-text {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--hhg-forest-ink);
+}
+
+@keyframes beachRefusalScratch {
+  0% {
+    transform: translateX(0);
+  }
+
+  20% {
+    transform: translateX(-4px);
+  }
+
+  40% {
+    transform: translateX(4px);
+  }
+
+  60% {
+    transform: translateX(-2px);
+  }
+
+  100% {
+    transform: translateX(0);
+  }
+}
+
+@media (max-width: 720px) {
+  .beach-latency-channels {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .beach-latency-total {
+    margin-left: 0;
+    width: 100%;
+  }
 }

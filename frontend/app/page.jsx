@@ -6,6 +6,8 @@ import refusedMock from '../mocks/query.refused.json';
 import BeachPartyEnvironment from '../components/BeachPartyEnvironment';
 import WanderStamp from '../components/WanderStamp';
 import VoiceReactiveGrid from '../components/VoiceReactiveGrid';
+import LatencyMixer from '../components/LatencyMixer';
+import RefusalBanner from '../components/RefusalBanner';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 const USE_MOCKS = process.env.NEXT_PUBLIC_USE_MOCKS === 'true';
@@ -20,10 +22,40 @@ const STRATEGIES = [
   { id: 'recursive', label: 'recursive' },
 ];
 
+const DEMO_PROMPTS = [
+  { id: 'en', label: 'EN', question: 'What was the Manhattan Project?' },
+  { id: 'hi', label: 'HI', question: 'पेरिस फ्रांस की राजधानी है?' },
+  { id: 'mr', label: 'MR', question: 'मॅनहट्टन प्रकल्प काय होता?' },
+  { id: 'refusal', label: 'Refusal', question: "What's the weather in Tokyo?" },
+];
+
+const ANSWER_LANGS = [
+  { id: 'en', label: 'English' },
+  { id: 'hi', label: 'हिंदी' },
+  { id: 'mr', label: 'मराठी' },
+];
+
+const CONTEXT_PREVIEW_LEN = 240;
+
 function apiHeaders(extra = {}) {
   const headers = { ...extra };
   if (DEMO_PASSWORD) headers['x-demo-password'] = DEMO_PASSWORD;
   return headers;
+}
+
+function getAnswerForLang(result, lang) {
+  if (!result) return '';
+  if (lang === 'hi') return result.answer_hi || result.answer || '';
+  if (lang === 'mr') return result.answer_mr || result.answer || '';
+  return result.answer || '';
+}
+
+function isLangAvailable(result, lang) {
+  if (!result) return false;
+  if (lang === 'en') return Boolean(result.answer);
+  if (lang === 'hi') return Boolean(result.answer_hi);
+  if (lang === 'mr') return Boolean(result.answer_mr);
+  return false;
 }
 
 export default function Home() {
@@ -38,6 +70,8 @@ export default function Home() {
     'Ask a question in Marathi, Hindi, or English — or tap the voice grid to speak',
   );
   const [voiceLevel, setVoiceLevel] = useState(0);
+  const [answerLang, setAnswerLang] = useState('en');
+  const [expandedCtx, setExpandedCtx] = useState(() => new Set());
 
   const strategyRef = useRef(strategy);
   const mediaRef = useRef({
@@ -82,7 +116,6 @@ export default function Home() {
           sum += v * v;
         }
         const rms = Math.sqrt(sum / data.length);
-        // Boost speech into a visible 0–1 range
         const level = Math.min(1, rms * 4.2);
         setVoiceLevel(level);
         mediaRef.current.rafId = requestAnimationFrame(tick);
@@ -117,6 +150,12 @@ export default function Home() {
       })
       .catch(() => setHealth('backend unreachable'));
   }, []);
+
+  useEffect(() => {
+    if (!result) return;
+    setAnswerLang('en');
+    setExpandedCtx(new Set());
+  }, [result]);
 
   async function executeQuery(qText, source = 'text') {
     const q = (qText || question).trim();
@@ -274,18 +313,47 @@ export default function Home() {
     setStrategy(id);
     const q = question.trim();
     if (q && !loading && !transcribing) {
-      // small defer so strategyRef updates via effect before fetch
       strategyRef.current = id;
       executeQuery(q, 'text');
     }
   }
 
+  function runDemoPrompt(promptQuestion) {
+    if (loading || transcribing) return;
+    setQuestion(promptQuestion);
+    executeQuery(promptQuestion, 'text');
+  }
+
+  function toggleCtxExpand(index) {
+    setExpandedCtx((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
+  }
+
+  async function copySnippet(text) {
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      setStatusMsg('Evidence snippet copied');
+    } catch {
+      setStatusMsg('Copy failed — select text manually');
+    }
+  }
+
   const totalMs = Number(result?.latency_ms?.total) || 0;
-  const retrieveMs = Number(result?.latency_ms?.retrieve) || 0;
-  const generateMs = Number(result?.latency_ms?.generate) || 0;
   const isRefusal = result?.guardrail && result.guardrail.allowed === false;
   const busy = loading || transcribing;
   const healthOk = health.includes('ok') && !health.includes('unreachable') && !health.includes('down');
+  const visibleLangs = result
+    ? ANSWER_LANGS.filter((lang) => isLangAvailable(result, lang.id))
+    : [];
+  const activeAnswerLang = visibleLangs.some((l) => l.id === answerLang)
+    ? answerLang
+    : visibleLangs[0]?.id || 'en';
+  const displayAnswer = result ? getAnswerForLang(result, activeAnswerLang) : '';
 
   return (
     <div className="beach-stage-wrapper">
@@ -380,6 +448,22 @@ export default function Home() {
                   </button>
                 </form>
 
+                <div className="beach-demo-prompts">
+                  <span className="beach-demo-prompts-label">Try:</span>
+                  {DEMO_PROMPTS.map((prompt) => (
+                    <button
+                      key={prompt.id}
+                      type="button"
+                      className={`beach-demo-chip ${prompt.id === 'refusal' ? 'is-refusal' : ''}`}
+                      disabled={busy}
+                      onClick={() => runDemoPrompt(prompt.question)}
+                      title={prompt.question}
+                    >
+                      {prompt.label}
+                    </button>
+                  ))}
+                </div>
+
                 <div className="beach-mixer-controls-row">
                   <div className="beach-channel-tag">
                     <span>{statusMsg}</span>
@@ -416,51 +500,96 @@ export default function Home() {
             </div>
 
             {result && (
-              <div className={`beach-grounded-plate ${isRefusal ? 'is-refusal' : ''}`}>
-                <div className="beach-plate-header">
-                  <span>{isRefusal ? 'Guardrail refusal' : 'Grounded answer'}</span>
-                  <span>
-                    {totalMs ? `${totalMs.toFixed(1)} ms` : '—'}
-                  </span>
-                </div>
+              <>
+                {isRefusal && <RefusalBanner guardrail={result.guardrail} />}
 
-                <div className="beach-plate-text">
-                  {result.answer || '(no answer)'}
-                </div>
-
-                <div className="beach-plate-chips">
-                  {totalMs > 0 && (
-                    <span className="beach-plate-chip green">{totalMs.toFixed(1)} ms total</span>
-                  )}
-                  {retrieveMs > 0 && (
-                    <span className="beach-plate-chip">{retrieveMs.toFixed(1)} ms retrieve</span>
-                  )}
-                  {generateMs > 0 && (
-                    <span className="beach-plate-chip">{generateMs.toFixed(1)} ms generate</span>
-                  )}
-                  <span className="beach-plate-chip">{strategy}</span>
-                  <span className="beach-plate-chip">
-                    {(result.contexts || []).length} contexts
-                  </span>
-                </div>
-
-                {Array.isArray(result.contexts) && result.contexts.length > 0 && (
-                  <div className="beach-context-list">
-                    {result.contexts.slice(0, 3).map((ctx, i) => (
-                      <div key={ctx.id || i} className="beach-context-item">
-                        <strong>
-                          #{i + 1}
-                          {typeof ctx.score === 'number' ? ` · ${ctx.score.toFixed(3)}` : ''}
-                        </strong>
-                        <p>
-                          {(ctx.text || '').slice(0, 240)}
-                          {(ctx.text || '').length > 240 ? '…' : ''}
-                        </p>
-                      </div>
-                    ))}
+                <div className={`beach-grounded-plate ${isRefusal ? 'is-refusal' : ''}`}>
+                  <div className="beach-plate-header">
+                    <span>{isRefusal ? 'Guardrail refusal' : 'Grounded answer'}</span>
+                    <span>{totalMs ? `${totalMs.toFixed(1)} ms` : '—'}</span>
                   </div>
-                )}
-              </div>
+
+                  {!isRefusal && visibleLangs.length > 1 && (
+                    <div className="beach-lang-tabs" role="tablist" aria-label="Answer language">
+                      {visibleLangs.map((lang) => (
+                        <button
+                          key={lang.id}
+                          type="button"
+                          role="tab"
+                          aria-selected={activeAnswerLang === lang.id}
+                          className={`beach-lang-tab ${activeAnswerLang === lang.id ? 'active' : ''}`}
+                          onClick={() => setAnswerLang(lang.id)}
+                        >
+                          {lang.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="beach-plate-text">
+                    {displayAnswer || '(no answer)'}
+                  </div>
+
+                  <div className="beach-plate-chips">
+                    <span className="beach-plate-chip">{strategy}</span>
+                    <span className="beach-plate-chip">
+                      {(result.contexts || []).length} contexts
+                    </span>
+                  </div>
+
+                  <LatencyMixer latencyMs={result.latency_ms} />
+
+                  {Array.isArray(result.contexts) && result.contexts.length > 0 && (
+                    <div className="beach-context-list">
+                      <div className="beach-context-list-head">Evidence postcards</div>
+                      {result.contexts.slice(0, 3).map((ctx, i) => {
+                        const text = ctx.text || '';
+                        const isExpanded = expandedCtx.has(i);
+                        const needsExpand = text.length > CONTEXT_PREVIEW_LEN;
+                        const displayText =
+                          isExpanded || !needsExpand
+                            ? text
+                            : `${text.slice(0, CONTEXT_PREVIEW_LEN)}…`;
+
+                        return (
+                          <div
+                            key={ctx.id || i}
+                            className={`beach-context-item ${isExpanded ? 'is-expanded' : ''}`}
+                          >
+                            <div className="beach-context-item-head">
+                              <strong className="beach-context-item-meta">
+                                #{i + 1}
+                                {typeof ctx.score === 'number' ? ` · ${ctx.score.toFixed(3)}` : ''}
+                                {ctx.id ? ` · ${ctx.id}` : ''}
+                                {ctx.strategy ? ` · ${ctx.strategy}` : ''}
+                              </strong>
+                              <div className="beach-context-item-actions">
+                                {needsExpand && (
+                                  <button
+                                    type="button"
+                                    className="beach-context-action-btn"
+                                    onClick={() => toggleCtxExpand(i)}
+                                  >
+                                    {isExpanded ? 'Collapse' : 'Expand'}
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  className="beach-context-action-btn"
+                                  onClick={() => copySnippet(text)}
+                                >
+                                  Copy
+                                </button>
+                              </div>
+                            </div>
+                            <p>{displayText}</p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </>
             )}
           </div>
         </section>
