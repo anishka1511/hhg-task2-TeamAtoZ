@@ -18,6 +18,7 @@ export default function BeachPartyEnvironment({ isRecording = false, isLoading =
   };
 
   return (
+    <>
     <div className="beach-env-root env-palette-2" aria-hidden="true">
       {/* ── 1. Sky & drifting clouds ── */}
       <div className="env-sky-layer">
@@ -149,7 +150,6 @@ export default function BeachPartyEnvironment({ isRecording = false, isLoading =
           <div className="speaker-woofer-ring woofer-bot">
             <div className="woofer-cone" />
           </div>
-          <div className="speaker-brand-badge">HHG-BASS</div>
         </div>
       </div>
 
@@ -162,7 +162,6 @@ export default function BeachPartyEnvironment({ isRecording = false, isLoading =
           <div className="speaker-woofer-ring woofer-bot">
             <div className="woofer-cone" />
           </div>
-          <div className="speaker-brand-badge">HHG-BASS</div>
         </div>
       </div>
 
@@ -172,8 +171,9 @@ export default function BeachPartyEnvironment({ isRecording = false, isLoading =
           {activeCheer}
         </div>
       )}
+    </div>
 
-      {/* ── 7. Expressive Animated Festival Dancers (Flanking the Sand) ── */}
+    <div className="beach-env-dancers-layer" aria-hidden="true">
       {/* Left Sand Dancers */}
       <div className="env-side-dancers-left">
         {/* Dancer 1: Glowstick & Retro Headphone Partygirl */}
@@ -309,5 +309,6 @@ export default function BeachPartyEnvironment({ isRecording = false, isLoading =
         </div>
       </div>
     </div>
+  </>
   );
 }

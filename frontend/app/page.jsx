@@ -6,6 +6,9 @@ import refusedMock from '../mocks/query.refused.json';
 import BeachPartyEnvironment from '../components/BeachPartyEnvironment';
 import WanderStamp from '../components/WanderStamp';
 import VoiceReactiveGrid from '../components/VoiceReactiveGrid';
+import LatencyMixer from '../components/LatencyMixer';
+import RefusalBanner from '../components/RefusalBanner';
+import ActionSearchBar from '../components/ActionSearchBar';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 const USE_MOCKS = process.env.NEXT_PUBLIC_USE_MOCKS === 'true';
@@ -20,10 +23,42 @@ const STRATEGIES = [
   { id: 'recursive', label: 'recursive' },
 ];
 
+const STRATEGY_IDS = new Set(STRATEGIES.map((s) => s.id));
+const STRATEGY_LABELS = new Set(STRATEGIES.map((s) => s.label.toLowerCase()));
+
+function isStrategyToken(text) {
+  const t = String(text || '').trim();
+  if (!t) return false;
+  return STRATEGY_IDS.has(t) || STRATEGY_LABELS.has(t.toLowerCase());
+}
+
+const ANSWER_LANGS = [
+  { id: 'en', label: 'English' },
+  { id: 'hi', label: 'हिंदी' },
+  { id: 'mr', label: 'मराठी' },
+];
+
+const CONTEXT_PREVIEW_LEN = 240;
+
 function apiHeaders(extra = {}) {
   const headers = { ...extra };
   if (DEMO_PASSWORD) headers['x-demo-password'] = DEMO_PASSWORD;
   return headers;
+}
+
+function getAnswerForLang(result, lang) {
+  if (!result) return '';
+  if (lang === 'hi') return result.answer_hi || result.answer || '';
+  if (lang === 'mr') return result.answer_mr || result.answer || '';
+  return result.answer || '';
+}
+
+function isLangAvailable(result, lang) {
+  if (!result) return false;
+  if (lang === 'en') return Boolean(result.answer);
+  if (lang === 'hi') return Boolean(result.answer_hi);
+  if (lang === 'mr') return Boolean(result.answer_mr);
+  return false;
 }
 
 export default function Home() {
@@ -35,11 +70,17 @@ export default function Home() {
   const [result, setResult] = useState(null);
   const [health, setHealth] = useState('checking…');
   const [statusMsg, setStatusMsg] = useState(
-    'Ask a question in Marathi, Hindi, or English — or tap the voice grid to speak',
+    'Ask a question in Marathi, Hindi, or English',
   );
   const [voiceLevel, setVoiceLevel] = useState(0);
+  const [answerLang, setAnswerLang] = useState('en');
+  const [expandedCtx, setExpandedCtx] = useState(() => new Set());
+  const [voiceTranscript, setVoiceTranscript] = useState(null);
+  const [showStickyAsk, setShowStickyAsk] = useState(false);
 
   const strategyRef = useRef(strategy);
+  const lastQueryRef = useRef({ text: '', source: 'text' });
+  const searchAnchorRef = useRef(null);
   const mediaRef = useRef({
     recorder: null,
     chunks: [],
@@ -82,7 +123,6 @@ export default function Home() {
           sum += v * v;
         }
         const rms = Math.sqrt(sum / data.length);
-        // Boost speech into a visible 0–1 range
         const level = Math.min(1, rms * 4.2);
         setVoiceLevel(level);
         mediaRef.current.rafId = requestAnimationFrame(tick);
@@ -105,9 +145,16 @@ export default function Home() {
   useEffect(() => {
     if (USE_MOCKS) {
       setHealth('mocks mode');
-      return;
+      return undefined;
     }
-    fetch(`${API_URL}/api/health`, { headers: apiHeaders() })
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 4000);
+
+    fetch(`${API_URL}/api/health`, {
+      headers: apiHeaders(),
+      signal: controller.signal,
+    })
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((data) => {
         const q = data.services?.qdrant?.ok ? 'qdrant ok' : 'qdrant down';
@@ -115,12 +162,52 @@ export default function Home() {
         const stt = data.services?.stt || '?';
         setHealth(`${data.status || 'ok'} · ${q} · llm ${llm} · stt ${stt}`);
       })
-      .catch(() => setHealth('backend unreachable'));
+      .catch(() => setHealth('backend unreachable'))
+      .finally(() => clearTimeout(timeoutId));
+
+    return () => {
+      controller.abort();
+      clearTimeout(timeoutId);
+    };
   }, []);
 
+  useEffect(() => {
+    if (!result) return;
+    setAnswerLang('en');
+    setExpandedCtx(new Set());
+  }, [result]);
+
+  useEffect(() => {
+    const el = searchAnchorRef.current;
+    if (!el || typeof IntersectionObserver === 'undefined') return undefined;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => setShowStickyAsk(!entry.isIntersecting),
+      { threshold: 0, rootMargin: '0px' },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  function handleQuestionChange(next) {
+    setQuestion(next);
+    if (!next.trim()) setVoiceTranscript(null);
+  }
+
+  function resolveQueryText(...candidates) {
+    for (const candidate of candidates) {
+      const text = String(candidate || '').trim();
+      if (text && !isStrategyToken(text)) return text;
+    }
+    return '';
+  }
+
   async function executeQuery(qText, source = 'text') {
-    const q = (qText || question).trim();
+    const q = resolveQueryText(qText, question, voiceTranscript, lastQueryRef.current.text);
     if (!q || loading || transcribing) return;
+
+    lastQueryRef.current = { text: q, source };
+    if (source === 'text') setVoiceTranscript(null);
 
     setLoading(true);
     setResult(null);
@@ -193,6 +280,7 @@ export default function Home() {
       if (USE_MOCKS) {
         const mockQ = 'What was the Manhattan Project?';
         setQuestion(mockQ);
+        setVoiceTranscript(mockQ);
         setTranscribing(false);
         await executeQuery(mockQ, 'voice');
         return;
@@ -212,6 +300,7 @@ export default function Home() {
       const transcript = (sttData.transcript || '').trim();
       if (!transcript) throw new Error('Empty transcript from STT');
       setQuestion(transcript);
+      setVoiceTranscript(transcript);
       setTranscribing(false);
       await executeQuery(transcript, 'voice');
     } catch (err) {
@@ -272,23 +361,66 @@ export default function Home() {
 
   function selectStrategy(id) {
     setStrategy(id);
-    const q = question.trim();
-    if (q && !loading && !transcribing) {
-      // small defer so strategyRef updates via effect before fetch
-      strategyRef.current = id;
-      executeQuery(q, 'text');
+    strategyRef.current = id;
+    if (loading || transcribing) return;
+
+    const q = resolveQueryText(
+      question,
+      voiceTranscript,
+      lastQueryRef.current.text,
+    );
+    if (!q) return;
+
+    const source = (voiceTranscript || lastQueryRef.current.source === 'voice')
+      ? 'voice'
+      : 'text';
+    executeQuery(q, source);
+  }
+
+  function toggleCtxExpand(index) {
+    setExpandedCtx((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
+  }
+
+  async function copySnippet(text, successMsg = 'Evidence snippet copied') {
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      setStatusMsg(successMsg);
+    } catch {
+      setStatusMsg('Copy failed — select text manually');
     }
   }
 
+  async function copyAnswer(text) {
+    await copySnippet(text, 'Answer copied');
+  }
+
   const totalMs = Number(result?.latency_ms?.total) || 0;
-  const retrieveMs = Number(result?.latency_ms?.retrieve) || 0;
-  const generateMs = Number(result?.latency_ms?.generate) || 0;
   const isRefusal = result?.guardrail && result.guardrail.allowed === false;
+  const hasQueryInput = Boolean(question.trim());
+  const isStatusError =
+    statusMsg.startsWith('STT error') ||
+    statusMsg.startsWith('Mic blocked') ||
+    statusMsg.startsWith('Copy failed') ||
+    statusMsg === 'Backend connection error';
+
   const busy = loading || transcribing;
   const healthOk = health.includes('ok') && !health.includes('unreachable') && !health.includes('down');
+  const visibleLangs = result
+    ? ANSWER_LANGS.filter((lang) => isLangAvailable(result, lang.id))
+    : [];
+  const activeAnswerLang = visibleLangs.some((l) => l.id === answerLang)
+    ? answerLang
+    : visibleLangs[0]?.id || 'en';
+  const displayAnswer = result ? getAnswerForLang(result, activeAnswerLang) : '';
 
   return (
-    <div className="beach-stage-wrapper">
+    <div className={`beach-stage-wrapper ${showStickyAsk ? 'has-mobile-sticky' : ''}`}>
       <BeachPartyEnvironment isRecording={isRecording} isLoading={busy} />
 
       <div className="beach-container">
@@ -343,127 +475,247 @@ export default function Home() {
 
           <div className="beach-dj-rig-body">
             <div className="beach-turntables-row">
-              <div className="beach-turntable-unit">
-                <VoiceReactiveGrid
-                  level={voiceLevel}
-                  active={isRecording}
-                  processing={busy && !isRecording}
-                  disabled={busy && !isRecording}
-                  onClick={toggleMic}
-                />
-                <span className="beach-turntable-caption">
-                  {isRecording ? 'LISTENING' : busy ? 'GENERATING' : 'VOICE'}
-                </span>
-              </div>
-
               <div className="beach-channel-panel">
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    executeQuery(question, 'text');
-                  }}
-                  className="beach-search-row"
-                >
-                  <input
-                    className="beach-query-input"
+                <div ref={searchAnchorRef}>
+                  <ActionSearchBar
                     value={question}
-                    onChange={(e) => setQuestion(e.target.value)}
-                    placeholder="Ask a question, or tap the voice grid to speak…"
+                    onChange={handleQuestionChange}
+                    onSubmit={(q) => executeQuery(q, 'text')}
                     disabled={busy}
+                    inlineControl={
+                      <VoiceReactiveGrid
+                        level={voiceLevel}
+                        active={isRecording}
+                        processing={busy && !isRecording}
+                        disabled={busy && !isRecording}
+                        onClick={toggleMic}
+                      />
+                    }
                   />
-                  <button
-                    type="submit"
-                    className="beach-drop-beat-btn"
-                    disabled={busy || !question.trim()}
-                  >
-                    {busy ? '…' : 'ASK'}
-                  </button>
-                </form>
+                </div>
 
-                <div className="beach-mixer-controls-row">
-                  <div className="beach-channel-tag">
+                {voiceTranscript && !transcribing && (
+                  <div className="beach-transcript-bubble" role="status">
+                    <span className="beach-transcript-label">Heard</span>
+                    <q className="beach-transcript-text">{voiceTranscript}</q>
+                  </div>
+                )}
+
+                <div className={`beach-mixer-controls-row ${isStatusError ? 'has-status-error' : ''}`}>
+                  <div className={`beach-channel-tag ${isStatusError ? 'is-error' : ''}`}>
                     <span>{statusMsg}</span>
                   </div>
 
-                  <div className="beach-strategy-faders">
-                    {STRATEGIES.map((st) => (
-                      <button
-                        key={st.id}
-                        type="button"
-                        disabled={busy}
-                        onClick={() => selectStrategy(st.id)}
-                        className={`beach-fader-btn ${strategy === st.id ? 'active' : ''}`}
-                        title={st.id}
-                      >
-                        {st.label}
-                      </button>
-                    ))}
-                  </div>
+                  {hasQueryInput && (
+                    <div className="beach-strategy-faders">
+                      {STRATEGIES.map((st) => (
+                        <button
+                          key={st.id}
+                          type="button"
+                          disabled={busy}
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            selectStrategy(st.id);
+                          }}
+                          className={`beach-fader-btn ${strategy === st.id ? 'active' : ''}`}
+                          title={st.id}
+                        >
+                          {st.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 
-              <div className="beach-turntable-unit">
-                <div
-                  className={`beach-vinyl-platter ${busy ? 'spinning' : ''}`}
-                  title="Retrieval engine"
-                >
-                  <div className="beach-vinyl-center-label">RAG</div>
+              <div className="beach-turntable-row-compact">
+                <div className="beach-turntable-unit beach-turntable-voice">
+                  <VoiceReactiveGrid
+                    level={voiceLevel}
+                    active={isRecording}
+                    processing={busy && !isRecording}
+                    disabled={busy && !isRecording}
+                    onClick={toggleMic}
+                  />
+                  <span className="beach-turntable-caption">
+                    {isRecording ? 'LISTENING' : busy ? 'GENERATING' : 'VOICE'}
+                  </span>
                 </div>
-                <span className="beach-turntable-caption">
-                  {busy ? 'SEARCHING' : 'RETRIEVE'}
-                </span>
+
+                <div className="beach-turntable-unit beach-turntable-rag">
+                  <div
+                    className={`beach-vinyl-platter ${busy ? 'spinning' : ''}`}
+                    title="Retrieval engine"
+                  >
+                    <div className="beach-vinyl-center-label">RAG</div>
+                  </div>
+                  <span className="beach-turntable-caption">
+                    {busy ? 'SEARCHING' : 'RETRIEVE'}
+                  </span>
+                </div>
               </div>
             </div>
 
             {result && (
-              <div className={`beach-grounded-plate ${isRefusal ? 'is-refusal' : ''}`}>
-                <div className="beach-plate-header">
-                  <span>{isRefusal ? 'Guardrail refusal' : 'Grounded answer'}</span>
-                  <span>
-                    {totalMs ? `${totalMs.toFixed(1)} ms` : '—'}
-                  </span>
-                </div>
+              <>
+                {isRefusal && <RefusalBanner guardrail={result.guardrail} />}
 
-                <div className="beach-plate-text">
-                  {result.answer || '(no answer)'}
-                </div>
-
-                <div className="beach-plate-chips">
-                  {totalMs > 0 && (
-                    <span className="beach-plate-chip green">{totalMs.toFixed(1)} ms total</span>
-                  )}
-                  {retrieveMs > 0 && (
-                    <span className="beach-plate-chip">{retrieveMs.toFixed(1)} ms retrieve</span>
-                  )}
-                  {generateMs > 0 && (
-                    <span className="beach-plate-chip">{generateMs.toFixed(1)} ms generate</span>
-                  )}
-                  <span className="beach-plate-chip">{strategy}</span>
-                  <span className="beach-plate-chip">
-                    {(result.contexts || []).length} contexts
-                  </span>
-                </div>
-
-                {Array.isArray(result.contexts) && result.contexts.length > 0 && (
-                  <div className="beach-context-list">
-                    {result.contexts.slice(0, 3).map((ctx, i) => (
-                      <div key={ctx.id || i} className="beach-context-item">
-                        <strong>
-                          #{i + 1}
-                          {typeof ctx.score === 'number' ? ` · ${ctx.score.toFixed(3)}` : ''}
-                        </strong>
-                        <p>
-                          {(ctx.text || '').slice(0, 240)}
-                          {(ctx.text || '').length > 240 ? '…' : ''}
-                        </p>
-                      </div>
-                    ))}
+                <div className={`beach-grounded-plate ${isRefusal ? 'is-refusal' : ''}`}>
+                  <div className="beach-plate-header">
+                    <span>{isRefusal ? 'Guardrail refusal' : 'Grounded answer'}</span>
+                    <div className="beach-plate-header-actions">
+                      {!isRefusal && displayAnswer && (
+                        <button
+                          type="button"
+                          className="beach-plate-copy-btn"
+                          onClick={() => copyAnswer(displayAnswer)}
+                        >
+                          Copy answer
+                        </button>
+                      )}
+                      <span className="beach-plate-timing">
+                        {totalMs ? `${totalMs.toFixed(1)} ms` : '—'}
+                      </span>
+                    </div>
                   </div>
-                )}
-              </div>
+
+                  {!isRefusal && visibleLangs.length > 1 && (
+                    <div className="beach-lang-tabs" role="tablist" aria-label="Answer language">
+                      {visibleLangs.map((lang) => (
+                        <button
+                          key={lang.id}
+                          type="button"
+                          role="tab"
+                          aria-selected={activeAnswerLang === lang.id}
+                          className={`beach-lang-tab ${activeAnswerLang === lang.id ? 'active' : ''}`}
+                          onClick={() => setAnswerLang(lang.id)}
+                        >
+                          {lang.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="beach-plate-text">
+                    {displayAnswer || '(no answer)'}
+                  </div>
+
+                  <div className="beach-plate-chips">
+                    <span className="beach-plate-chip">{strategy}</span>
+                    <span className="beach-plate-chip">
+                      {(result.contexts || []).length} contexts
+                    </span>
+                  </div>
+
+                  <LatencyMixer latencyMs={result.latency_ms} />
+
+                  {Array.isArray(result.contexts) && result.contexts.length > 0 && (
+                    <div className="beach-context-list">
+                      <div className="beach-context-list-head">Evidence postcards</div>
+                      {result.contexts.slice(0, 3).map((ctx, i) => {
+                        const text = ctx.text || '';
+                        const isExpanded = expandedCtx.has(i);
+                        const needsExpand = text.length > CONTEXT_PREVIEW_LEN;
+                        const displayText =
+                          isExpanded || !needsExpand
+                            ? text
+                            : `${text.slice(0, CONTEXT_PREVIEW_LEN)}…`;
+
+                        return (
+                          <div
+                            key={ctx.id || i}
+                            className={`beach-context-item ${isExpanded ? 'is-expanded' : ''}`}
+                          >
+                            <div className="beach-context-item-head">
+                              <strong className="beach-context-item-meta">
+                                #{i + 1}
+                                {typeof ctx.score === 'number' ? ` · ${ctx.score.toFixed(3)}` : ''}
+                                {ctx.id ? ` · ${ctx.id}` : ''}
+                                {ctx.strategy ? ` · ${ctx.strategy}` : ''}
+                              </strong>
+                              <div className="beach-context-item-actions">
+                                {needsExpand && (
+                                  <button
+                                    type="button"
+                                    className="beach-context-action-btn"
+                                    onClick={() => toggleCtxExpand(i)}
+                                  >
+                                    {isExpanded ? 'Collapse' : 'Expand'}
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  className="beach-context-action-btn"
+                                  onClick={() => copySnippet(text)}
+                                >
+                                  Copy
+                                </button>
+                              </div>
+                            </div>
+                            <p>{displayText}</p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </>
             )}
           </div>
         </section>
+      </div>
+
+      <footer className="beach-site-footer">
+        <div className="beach-site-footer-inner">
+          <p>
+            Team AtoZ · HHG Task 2 · Voice RAG ·{' '}
+            <span className="beach-footer-tag">#RAGInGoa</span>
+          </p>
+          <a
+            href="https://github.com/anishka1511/hhg-task2-TeamAtoZ"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="beach-footer-github"
+            aria-label="View repository on GitHub"
+            title="GitHub repository"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                fill="currentColor"
+                d="M12 2C6.477 2 2 6.484 2 12.021c0 4.428 2.865 8.184 6.839 9.504.5.092.682-.217.682-.483 0-.237-.009-.868-.014-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0 0 22 12.021C22 6.484 17.522 2 12 2Z"
+              />
+            </svg>
+          </a>
+        </div>
+      </footer>
+
+      <div
+        className={`beach-mobile-sticky ${showStickyAsk ? 'is-visible' : ''}`}
+        aria-hidden={!showStickyAsk}
+      >
+        <input
+          className="beach-query-input beach-mobile-sticky-input"
+          value={question}
+          onChange={(e) => handleQuestionChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              executeQuery(question, 'text');
+            }
+          }}
+          placeholder="Ask a question…"
+          disabled={busy}
+          aria-label="Ask a question"
+        />
+        <button
+          type="button"
+          className="beach-drop-beat-btn beach-mobile-sticky-ask"
+          disabled={busy || !question.trim()}
+          onClick={() => executeQuery(question, 'text')}
+        >
+          {busy ? '…' : 'ASK'}
+        </button>
       </div>
     </div>
   );

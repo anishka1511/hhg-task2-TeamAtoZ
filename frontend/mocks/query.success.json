@@ -1,5 +1,7 @@
 {
   "answer": "Paris is the capital of France.",
+  "answer_hi": "पेरिस फ्रांस की राजधानी है।",
+  "answer_mr": "पॅरिस ही फ्रान्सची राजधानी आहे.",
   "contexts": [
     {
       "id": "doc-1-chunk-0",
