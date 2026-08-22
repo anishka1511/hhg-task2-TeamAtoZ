@@ -10,8 +10,8 @@
 import { groqChat } from './groq.js';
 import { assembleExtractiveAnswer } from './extractive.js';
 
-/** Fast Groq chat model — avoid openai/gpt-oss-* (reasoning; hundreds of ms). */
-const DEFAULT_MODEL = 'llama-3.1-8b-instant';
+/** Groq model — use openai/gpt-oss-20b (llama-* ids are decommissioned on many keys). */
+const DEFAULT_MODEL = 'openai/gpt-oss-20b';
 
 function answerMode() {
   const m = String(process.env.ANSWER_MODE || 'hybrid').trim().toLowerCase();

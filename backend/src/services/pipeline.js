@@ -86,7 +86,35 @@ export async function runQueryPipeline({ question, source, chunking_strategy }) 
   let retrieveQuestion = originalQuestion;
   if (needsQueryTranslate(language)) {
     const english = await translateToEnglish(originalQuestion);
-    if (english) retrieveQuestion = english;
+    if (english) {
+      retrieveQuestion = english;
+    } else {
+      return {
+        ok: true,
+        payload: {
+          answer:
+            "I couldn't translate that question for search. Try English, or rephrase in Roman script (e.g. Manhattan Project kya tha?).",
+          answer_hi: null,
+          answer_mr: null,
+          contexts: [],
+          guardrail: { allowed: false, reason: 'translation_failed' },
+          latency_ms: {
+            stt: 0,
+            retrieve: 0,
+            generate: 0,
+            guardrail: 0,
+            total: timer.total(),
+          },
+          meta: {
+            source,
+            chunking_strategy: strategy,
+            language,
+            retrieve_question: originalQuestion,
+            answer_mode: null,
+          },
+        },
+      };
+    }
   }
 
   // --- retrieve (Builder 1) ---
@@ -164,16 +192,13 @@ export async function runQueryPipeline({ question, source, chunking_strategy }) 
 
   const englishAnswer = guardrail.allowed ? generation.answer : guardrail.fallbackAnswer;
 
-  // --- localize after guardrails (display only; off by default for latency) ---
+  // --- localize after guardrails (always for hi/mr when answer is allowed) ---
   let answer_hi = null;
   let answer_mr = null;
-  const localizeAnswers = String(process.env.LOCALIZE_ANSWERS || 'false').toLowerCase() === 'true';
-  if (
-    localizeAnswers &&
-    guardrail.allowed &&
-    englishAnswer &&
-    needsQueryTranslate(language)
-  ) {
+  const localizeAnswers =
+    String(process.env.LOCALIZE_ANSWERS || 'false').toLowerCase() === 'true' ||
+    needsQueryTranslate(language);
+  if (localizeAnswers && guardrail.allowed && englishAnswer && needsQueryTranslate(language)) {
     const localized = await translateFromEnglish(englishAnswer, language);
     if (localized) {
       if (language === 'mr') answer_mr = localized;
