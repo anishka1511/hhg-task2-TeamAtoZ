@@ -8,6 +8,7 @@ import WanderStamp from '../components/WanderStamp';
 import VoiceReactiveGrid from '../components/VoiceReactiveGrid';
 import LatencyMixer from '../components/LatencyMixer';
 import RefusalBanner from '../components/RefusalBanner';
+import ActionSearchBar from '../components/ActionSearchBar';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 const USE_MOCKS = process.env.NEXT_PUBLIC_USE_MOCKS === 'true';
@@ -20,13 +21,6 @@ const STRATEGIES = [
   { id: 'token_window', label: 'token window' },
   { id: 'structure_aware', label: 'structure aware' },
   { id: 'recursive', label: 'recursive' },
-];
-
-const DEMO_PROMPTS = [
-  { id: 'en', label: 'EN', question: 'What was the Manhattan Project?' },
-  { id: 'hi', label: 'HI', question: 'पेरिस फ्रांस की राजधानी है?' },
-  { id: 'mr', label: 'MR', question: 'मॅनहट्टन प्रकल्प काय होता?' },
-  { id: 'refusal', label: 'Refusal', question: "What's the weather in Tokyo?" },
 ];
 
 const ANSWER_LANGS = [
@@ -138,9 +132,16 @@ export default function Home() {
   useEffect(() => {
     if (USE_MOCKS) {
       setHealth('mocks mode');
-      return;
+      return undefined;
     }
-    fetch(`${API_URL}/api/health`, { headers: apiHeaders() })
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 4000);
+
+    fetch(`${API_URL}/api/health`, {
+      headers: apiHeaders(),
+      signal: controller.signal,
+    })
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((data) => {
         const q = data.services?.qdrant?.ok ? 'qdrant ok' : 'qdrant down';
@@ -148,7 +149,13 @@ export default function Home() {
         const stt = data.services?.stt || '?';
         setHealth(`${data.status || 'ok'} · ${q} · llm ${llm} · stt ${stt}`);
       })
-      .catch(() => setHealth('backend unreachable'));
+      .catch(() => setHealth('backend unreachable'))
+      .finally(() => clearTimeout(timeoutId));
+
+    return () => {
+      controller.abort();
+      clearTimeout(timeoutId);
+    };
   }, []);
 
   useEffect(() => {
@@ -318,12 +325,6 @@ export default function Home() {
     }
   }
 
-  function runDemoPrompt(promptQuestion) {
-    if (loading || transcribing) return;
-    setQuestion(promptQuestion);
-    executeQuery(promptQuestion, 'text');
-  }
-
   function toggleCtxExpand(index) {
     setExpandedCtx((prev) => {
       const next = new Set(prev);
@@ -425,44 +426,12 @@ export default function Home() {
               </div>
 
               <div className="beach-channel-panel">
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    executeQuery(question, 'text');
-                  }}
-                  className="beach-search-row"
-                >
-                  <input
-                    className="beach-query-input"
-                    value={question}
-                    onChange={(e) => setQuestion(e.target.value)}
-                    placeholder="Ask a question, or tap the voice grid to speak…"
-                    disabled={busy}
-                  />
-                  <button
-                    type="submit"
-                    className="beach-drop-beat-btn"
-                    disabled={busy || !question.trim()}
-                  >
-                    {busy ? '…' : 'ASK'}
-                  </button>
-                </form>
-
-                <div className="beach-demo-prompts">
-                  <span className="beach-demo-prompts-label">Try:</span>
-                  {DEMO_PROMPTS.map((prompt) => (
-                    <button
-                      key={prompt.id}
-                      type="button"
-                      className={`beach-demo-chip ${prompt.id === 'refusal' ? 'is-refusal' : ''}`}
-                      disabled={busy}
-                      onClick={() => runDemoPrompt(prompt.question)}
-                      title={prompt.question}
-                    >
-                      {prompt.label}
-                    </button>
-                  ))}
-                </div>
+                <ActionSearchBar
+                  value={question}
+                  onChange={setQuestion}
+                  onSubmit={(q) => executeQuery(q, 'text')}
+                  disabled={busy}
+                />
 
                 <div className="beach-mixer-controls-row">
                   <div className="beach-channel-tag">
